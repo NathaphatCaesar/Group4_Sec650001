@@ -89,6 +89,7 @@ const posts = [];
 const filters = { scope: 'all', tag: null, faculty: null, subject: null, sort: 'new' };
 let nextId = 1;
 let justPosted = null;
+let me = null;
 let openMenuId = null;
 let toastTimer = null;
 let draft = null;
@@ -230,15 +231,15 @@ function postHtml(p) {
     '<article class="card post' + (isAnnounce ? ' card-announce' : '') + (p.id === justPosted ? ' is-new' : '') + '" data-id="' + p.id + '">' +
       (isAnnounce ? '<p class="announce-strip">' + icon('megaphone') + 'ประกาศ<span class="days">ปักไว้อีก ' + ANNOUNCE_DAYS + ' วัน</span></p>' : '') +
       '<div class="post-head">' +
-        '<span class="avatar">?</span>' +
+        '<span class="avatar">' + escapeHtml(initial(me && me.displayName)) + '</span>' +
         '<div class="post-meta">' +
           '<div class="name-line">' +
-            '<span class="post-author">ยังไม่ได้เชื่อมต่อ</span>' +
-            '<span class="handle">@—</span>' +
+            '<span class="post-author">' + escapeHtml(me ? me.displayName : 'ยังไม่ได้เชื่อมต่อ') + '</span>' +
+            '<span class="handle">@' + escapeHtml(me ? me.username : '—') + '</span>' +
             '<span class="when">· ' + timeAgo(p.createdAt) + '</span>' +
             (p.visibility !== 'public' ? '<span class="vis-badge ' + p.visibility + '" title="' + vis.hint + '">' + icon(vis.icon) + vis.label + '</span>' : '') +
           '</div>' +
-          '<span class="role-line"><span class="role-badge role-unknown">' + icon('graduation') + 'ยังไม่ทราบ role</span></span>' +
+          roleLineHtml() +
         '</div>' +
         '<div class="post-tools">' +
           '<button type="button" class="tool-btn' + (p.bookmarked ? ' saved' : '') + '" data-action="bookmark" aria-label="' + (p.bookmarked ? 'เอาออกจากที่บันทึกไว้' : 'บันทึกโพสต์') + '">' + icon('bookmark') + '</button>' +
@@ -268,6 +269,38 @@ function postHtml(p) {
       '</div>' +
     '</article>'
   );
+}
+
+function roleLineHtml() {
+  if (!me) {
+    return '<span class="role-line"><span class="role-badge role-unknown">' + icon('graduation') + 'ยังไม่ทราบ role</span></span>';
+  }
+  const year = me.role === 'student' ? studyYear(me.entryYearBe) : null;
+  const faculty = shortFaculty(me.facultyName);
+  return (
+    '<span class="role-line">' +
+      '<span class="role-badge role-' + escapeHtml(me.role) + '">' + icon('graduation') + (ROLE_LABEL[me.role] || me.role) + '</span>' +
+      (year ? '<span>· ปี ' + year + '</span>' : '') +
+      (faculty ? '<span>· ' + escapeHtml(faculty) + '</span>' : '') +
+    '</span>'
+  );
+}
+
+function applyUser(user) {
+  me = user;
+  const letter = initial(user.displayName);
+  const faculty = shortFaculty(user.facultyName);
+  const role = ROLE_LABEL[user.role] || user.role;
+
+  $('user-btn').textContent = letter;
+  document.querySelectorAll('.user-menu-head .avatar, .me-row .avatar').forEach(function (el) {
+    el.textContent = letter;
+  });
+  document.querySelector('.user-name').textContent = user.displayName;
+  document.querySelector('.user-sub').textContent = '@' + user.username;
+  document.querySelector('.me-name').textContent = user.displayName;
+  document.querySelector('.me-sub').textContent = 'โพสต์ในนาม ' + role + (faculty ? ' · ' + faculty : '');
+  renderFeed();
 }
 
 function renderFeed() {
@@ -757,6 +790,23 @@ $('study-approval').addEventListener('change', function (event) {
 $('composer-form').addEventListener('submit', function (event) {
   event.preventDefault();
   submitPost();
+});
+
+$('logout-link').addEventListener('click', function (event) {
+  event.preventDefault();
+  apiRequest('/api/auth/logout', { method: 'POST' }).catch(function () {}).then(function () {
+    location.replace('login.html');
+  });
+});
+
+apiRequest('/api/auth/me').then(function (res) {
+  if (res.ok) {
+    applyUser(res.data.user);
+  } else if (res.status === 401) {
+    location.replace('login.html');
+  }
+}).catch(function () {
+  showToast('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — แสดงแบบยังไม่เชื่อมต่อ');
 });
 
 render();

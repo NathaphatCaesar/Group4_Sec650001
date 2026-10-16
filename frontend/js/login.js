@@ -70,13 +70,9 @@ function validate(username, password) {
   return null;
 }
 
-function fakeLogin(username, password) {
-  return new Promise(function (resolve) {
-    setTimeout(function () {
-      resolve({ ok: true });
-    }, 1000);
-  });
-}
+apiRequest('/api/auth/me').then(function (res) {
+  if (res.ok) location.replace('feed.html');
+}).catch(function () {});
 
 form.addEventListener('submit', async function (event) {
   event.preventDefault();
@@ -95,10 +91,14 @@ form.addEventListener('submit', async function (event) {
   setLoading(true);
 
   try {
-    const result = await fakeLogin(username, password);
+    const result = await apiRequest('/api/auth/login', {
+      method: 'POST',
+      body: { username: username, password: password }
+    });
 
     if (!result.ok) {
-      showMessage('ล็อกอินไม่สำเร็จ', 'error');
+      showMessage(result.data.error || 'ล็อกอินไม่สำเร็จ', 'error');
+      if (result.status === 401) passwordInput.classList.add('invalid');
       return;
     }
 
@@ -110,10 +110,13 @@ form.addEventListener('submit', async function (event) {
       }
     } catch (err) {}
 
-    showMessage('เข้าสู่ระบบสำเร็จ (จำลอง) — ยินดีต้อนรับ ' + username, 'success');
     passwordInput.value = '';
+    showMessage('เข้าสู่ระบบสำเร็จ — ยินดีต้อนรับ ' + result.data.user.displayName, 'success');
+    setTimeout(function () {
+      location.href = 'feed.html';
+    }, 600);
   } catch (err) {
-    showMessage('เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง', 'error');
+    showMessage('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจว่ารัน backend แล้ว', 'error');
   } finally {
     setLoading(false);
   }
