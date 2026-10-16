@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>หน้าฟีด — BACKHOME TU</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/feed.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="feed.html" class="brand">
+        <img src="images/logo.png" alt="BACKHOME TU" width="40" height="40" />
+      </a>
+
+      <label class="search">
+        <i data-icon="search"></i>
+        <input type="search" placeholder="ค้นหากระทู้, ชีท, คน, วิชา, หรือแท็ก..." data-soon="ค้นหา" />
+      </label>
+
+      <div class="top-actions">
+        <button type="button" class="icon-btn" aria-label="การแจ้งเตือน" data-soon="การแจ้งเตือน"><i data-icon="bell"></i></button>
+        <button type="button" class="icon-btn" aria-label="แชท" data-soon="แชท"><i data-icon="message"></i></button>
+        <div class="user">
+          <button type="button" id="user-btn" class="avatar avatar-btn" aria-haspopup="menu" aria-expanded="false" aria-label="เมนูผู้ใช้">?</button>
+          <div id="user-menu" class="user-menu" role="menu" hidden>
+            <div class="user-menu-head">
+              <span class="avatar">?</span>
+              <div>
+                <p class="user-name">ยังไม่ได้เชื่อมต่อ</p>
+                <p class="user-sub">ข้อมูลผู้ใช้จะมาจาก backend</p>
+              </div>
+            </div>
+            <button type="button" role="menuitem" data-soon="โปรไฟล์"><i data-icon="user"></i>โปรไฟล์</button>
+            <button type="button" role="menuitem" data-soon="ตั้งค่า"><i data-icon="settings"></i>ตั้งค่า</button>
+            <a href="login.html" role="menuitem" class="danger"><i data-icon="logout"></i>ออกจากระบบ</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="gradient-line"></div>
+  </header>
+
+  <div class="shell">
+    <aside class="sidenav">
+      <nav>
+        <a href="feed.html" class="nav-link active"><i data-icon="home"></i><span>หน้าฟีด</span></a>
+        <a href="#" class="nav-link" data-soon="ค้นหา"><i data-icon="search"></i><span>ค้นหา</span></a>
+        <a href="#" class="nav-link" data-soon="การแจ้งเตือน"><i data-icon="bell"></i><span>การแจ้งเตือน</span></a>
+        <a href="#" class="nav-link" data-soon="แชท"><i data-icon="message"></i><span>แชท</span></a>
+        <a href="#" class="nav-link" data-soon="นัดติวของฉัน"><i data-icon="calendar"></i><span>นัดติวของฉัน</span></a>
+        <a href="#" class="nav-link" data-soon="อันดับดาว"><i data-icon="trophy"></i><span>อันดับดาว</span></a>
+        <a href="#" class="nav-link" data-soon="โปรไฟล์"><i data-icon="user"></i><span>โปรไฟล์</span></a>
+      </nav>
+      <button type="button" class="btn-primary btn-block" data-compose><i data-icon="plus"></i>สร้างโพสต์</button>
+    </aside>
+
+    <main class="feed-col">
+      <div class="toolbar">
+        <div class="toolbar-row">
+          <div class="scope-tabs" role="tablist">
+            <button type="button" role="tab" class="scope-tab active" data-scope="all" aria-selected="true">ฟีดรวม</button>
+            <button type="button" role="tab" class="scope-tab" data-scope="following" aria-selected="false">ที่ติดตาม</button>
+            <button type="button" role="tab" class="scope-tab" data-scope="bookmarks" aria-selected="false">ที่บันทึก</button>
+          </div>
+          <button type="button" id="filter-btn" class="filter-btn" aria-haspopup="dialog">
+            <i data-icon="sliders"></i>ตัวกรอง<span id="filter-count" class="count" hidden></span>
+          </button>
+        </div>
+        <div id="chips" class="chips" hidden></div>
+      </div>
+
+      <div id="feed-list" class="feed-list"></div>
+
+      <section id="feed-empty" class="card empty" hidden>
+        <p class="empty-title" id="empty-title"></p>
+        <p class="empty-hint" id="empty-hint"></p>
+      </section>
+    </main>
+
+    <aside class="rail">
+      <section class="card rail-card">
+        <h2 class="rail-title">แนะนำให้ติดตาม</h2>
+        <p class="rail-empty">ยังไม่ได้เชื่อมต่อ — รายชื่อจะขึ้นเมื่อมี backend</p>
+      </section>
+
+      <section class="card rail-card">
+        <h2 class="rail-title">สถิติของคุณ</h2>
+        <p class="stars"><i data-icon="star" class="star-icon"></i><span class="stars-num">–</span><span class="stars-unit">ดาว</span></p>
+        <div class="progress"><div class="progress-bar"></div></div>
+        <p class="rail-empty">ยังไม่ได้เชื่อมต่อ</p>
+      </section>
+
+      <section class="card rail-card">
+        <div class="rail-head">
+          <h2 class="rail-title"><i data-icon="trophy" class="trophy-icon"></i>Top 5 ผู้มีดาวสูงสุด</h2>
+          <a href="#" class="rail-link" data-soon="อันดับดาว">ดูทั้งหมด</a>
+        </div>
+        <p class="rail-empty">ยังไม่มีข้อมูล</p>
+      </section>
+
+      <section class="card rail-card promo">
+        <p class="promo-title"><i data-icon="sparkles" class="trophy-icon"></i>แชร์ชีทดี ๆ รับดาวไปเลย</p>
+        <p class="promo-text">โพสต์ #ชีท พร้อมไฟล์ +10 ดาว · มีคนถูกใจ +1 ดาว · คำตอบถูกเลือก +25 ดาว</p>
+      </section>
+    </aside>
+  </div>
+
+  <nav class="mobile-nav">
+    <a href="feed.html" class="m-link active"><i data-icon="home"></i>หน้าฟีด</a>
+    <a href="#" class="m-link" data-soon="นัดติว"><i data-icon="calendar"></i>นัดติว</a>
+    <button type="button" class="m-compose" data-compose aria-label="สร้างโพสต์">
+      <span class="m-compose-icon"><i data-icon="plus"></i></span>
+      <span class="m-compose-label">โพสต์</span>
+    </button>
+    <a href="#" class="m-link" data-soon="อันดับดาว"><i data-icon="trophy"></i>อันดับดาว</a>
+    <a href="#" class="m-link" data-soon="โปรไฟล์"><i data-icon="user"></i>โปรไฟล์</a>
+  </nav>
+
+  <div id="composer" class="modal" role="dialog" aria-modal="true" aria-labelledby="composer-title" hidden>
+    <form id="composer-form" class="card modal-panel composer-panel" novalidate>
+      <header class="modal-head">
+        <h2 id="composer-title">สร้างโพสต์</h2>
+        <button type="button" class="icon-btn" data-close aria-label="ปิด"><i data-icon="x"></i></button>
+      </header>
+
+      <div class="modal-body composer-body">
+        <div class="me-row">
+          <span class="avatar">?</span>
+          <div>
+            <p class="me-name">ยังไม่ได้เชื่อมต่อ</p>
+            <p class="me-sub">โพสต์ในนาม — · ข้อมูลผู้ใช้จะมาจาก backend</p>
+          </div>
+        </div>
+
+        <div class="pill-row" id="composer-tags"></div>
+
+        <div id="visibility-box" class="soft-box">
+          <p class="soft-label">ใครเห็นโพสต์นี้ได้</p>
+          <div class="pill-row" id="visibility-options">
+            <button type="button" class="vis-chip" data-vis="public"><i data-icon="globe"></i>สาธารณะ</button>
+            <button type="button" class="vis-chip" data-vis="close"><i data-icon="star"></i>เพื่อนสนิท</button>
+            <button type="button" class="vis-chip" data-vis="private"><i data-icon="lock"></i>ส่วนตัว</button>
+          </div>
+          <p class="soft-label" id="visibility-hint"></p>
+        </div>
+        <p id="visibility-locked" class="soft-box soft-note" hidden><i data-icon="globe"></i><span id="visibility-locked-text"></span></p>
+
+        <input id="composer-title-input" class="input input-title" maxlength="120" />
+
+        <div id="poll-box" class="poll-edit" hidden>
+          <p class="soft-label">ตัวเลือกให้โหวต</p>
+          <div id="poll-options" class="poll-options"></div>
+          <button type="button" id="poll-add" class="btn-soft btn-sm"><i data-icon="plus"></i>เพิ่มตัวเลือก</button>
+        </div>
+
+        <textarea id="composer-body" class="input textarea" rows="4" maxlength="5000" placeholder="เล่ารายละเอียดหน่อย..."></textarea>
+
+        <div class="composer-grid">
+          <select id="composer-subject" class="input">
+            <option value="">— เลือกวิชา (ไม่บังคับ) —</option>
+          </select>
+          <label class="with-icon" data-study hidden>
+            <i data-icon="calendar"></i>
+            <input id="study-at" type="datetime-local" class="input" aria-label="วันเวลานัดติว" />
+          </label>
+          <input id="study-place" class="input" maxlength="80" placeholder="สถานที่ เช่น ตึก SC3 ชั้น 2" data-study hidden />
+          <input id="study-capacity" type="number" min="2" max="100" class="input" placeholder="รับกี่คน (ไม่บังคับ)" data-study hidden />
+          <label class="soft-box approval" data-study hidden>
+            <input type="checkbox" id="study-approval" />
+            <span>
+              <span class="approval-title">ต้องให้ฉันอนุมัติก่อนเข้าร่วม</span>
+              <span class="soft-label" id="approval-hint">ตอนนี้ใครกดก็เข้ากลุ่มแชทได้เลย</span>
+            </span>
+          </label>
+        </div>
+
+        <p id="composer-error" class="form-error" hidden></p>
+      </div>
+
+      <footer class="modal-foot composer-foot">
+        <button type="button" class="btn-soft btn-sm" data-soon-msg="แนบไฟล์ยังไม่ได้เชื่อมต่อ"><i data-icon="paperclip"></i>แนบไฟล์</button>
+        <button type="button" class="btn-soft btn-sm" data-soon-msg="เพิ่มรูปภาพยังไม่ได้เชื่อมต่อ"><i data-icon="image"></i>เพิ่มรูปภาพ</button>
+        <button type="button" class="btn-ghost btn-sm push" data-close>ยกเลิก</button>
+        <button type="submit" class="btn-primary btn-wide">โพสต์</button>
+      </footer>
+    </form>
+  </div>
+
+  <div id="filter" class="modal" role="dialog" aria-modal="true" aria-labelledby="filter-title" hidden>
+    <div class="card modal-panel">
+      <header class="modal-head">
+        <h2 id="filter-title">ตัวกรอง</h2>
+        <button type="button" class="icon-btn" data-close aria-label="ปิด"><i data-icon="x"></i></button>
+      </header>
+
+      <div class="modal-body">
+        <section>
+          <h3 class="section-title">เรียงตาม</h3>
+          <div class="pill-row" id="filter-sort">
+            <button type="button" class="pill" data-sort="new">ล่าสุด</button>
+            <button type="button" class="pill" data-sort="top">ยอดนิยม</button>
+          </div>
+        </section>
+
+        <section>
+          <h3 class="section-title">แท็ก</h3>
+          <div class="pill-row" id="filter-tags"></div>
+        </section>
+
+        <section>
+          <h3 class="section-title">คณะ</h3>
+          <select id="filter-faculty" class="input">
+            <option value="">ทุกคณะ</option>
+          </select>
+        </section>
+
+        <section>
+          <h3 class="section-title">วิชา</h3>
+          <div id="filter-picked" class="picked" hidden></div>
+          <label class="with-icon">
+            <i data-icon="search"></i>
+            <input id="filter-subject" class="input" placeholder="ค้นหารหัสหรือชื่อวิชา" />
+          </label>
+          <ul id="filter-subjects" class="subject-list"></ul>
+        </section>
+      </div>
+
+      <footer class="modal-foot">
+        <button type="button" class="btn-ghost" id="filter-clear">ล้าง</button>
+        <button type="button" class="btn-primary btn-wide" id="filter-apply">ดูผล</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="js/feed.js"></script>
+</body>
+</html>
