@@ -1,8 +1,8 @@
 services:
-  backend:
-    build: ./backend
-    container_name: backhome-backend
+  web:
+    build: .
+    container_name: backhome-web
     env_file: .env
     ports:
-      - "${PORT:-8080}:${PORT:-8080}"
+      - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped

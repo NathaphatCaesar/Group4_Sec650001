@@ -1,0 +1,8 @@
+services:
+  backend:
+    build: ./backend
+    container_name: backhome-backend
+    env_file: .env
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    restart: unless-stopped
