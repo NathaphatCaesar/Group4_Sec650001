@@ -7,6 +7,7 @@ import { SideNav, MobileNav, type NavItem } from '@/components/NavLinks';
 import { SearchBox } from '@/components/SearchBox';
 import { UserMenu } from '@/components/UserMenu';
 import { ComposerModal, ComposeButton } from '@/components/Composer';
+import { AccentStyle } from '@/components/AccentStyle';
 import { getMe, getSubjects } from '@/lib/data';
 import { getT } from '@/lib/i18n/server';
 
@@ -36,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-dvh">
+      <AccentStyle accent={me.accent} />
       <header
         className="sticky top-0 z-30 border-b border-[color:var(--color-line)] bg-white/90 backdrop-blur"
         style={{ paddingTop: 'var(--safe-top)' }}

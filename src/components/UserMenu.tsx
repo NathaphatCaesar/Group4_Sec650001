@@ -58,7 +58,7 @@ export function UserMenu({ me }: { me: Me }) {
           </div>
           <hr className="my-1 border-[color:var(--color-line)]" />
           <MenuLink href={`/u/${me.username}`} icon={<UserIcon size={16} />} label={t('โปรไฟล์ของฉัน')} onNavigate={() => setOpen(false)} />
-          <MenuLink href="/settings" icon={<Settings size={16} />} label={t('ตั้งค่า & แจ้งเตือน LINE')} onNavigate={() => setOpen(false)} />
+          <MenuLink href="/settings" icon={<Settings size={16} />} label={t('ตั้งค่า')} onNavigate={() => setOpen(false)} />
           {me.role === 'admin' ? (
             <>
               <MenuLink href="/admin" icon={<LayoutDashboard size={16} />} label={t('แดชบอร์ด')} onNavigate={() => setOpen(false)} />

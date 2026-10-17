@@ -3,6 +3,7 @@ import { cache } from 'react';
 import { db } from '@/lib/supabase';
 import { currentUserId } from '@/lib/session';
 import { studyYear } from '@/lib/tu-api';
+import { parseAccent, type Accent } from '@/lib/accent';
 import type {
   Attachment,
   Author,
@@ -29,6 +30,9 @@ export interface Me {
   study_year: number | null;
   stars: number;
   is_suspended: boolean;
+  accent: Accent | null;
+  real_name: string | null;
+  student_id: string | null;
 }
 
 export interface FeedParams {
@@ -65,6 +69,9 @@ export const getMe = cache(async (): Promise<Me | null> => {
     entry_year_be: number | null;
     stars?: number | null;
     is_suspended: boolean;
+    accent?: unknown;
+    display_name_th?: string | null;
+    student_id?: string | null;
   };
   if (row.is_suspended) return null;
 
@@ -80,6 +87,9 @@ export const getMe = cache(async (): Promise<Me | null> => {
     study_year: studyYear(row.entry_year_be),
     stars: Number(row.stars ?? 0),
     is_suspended: row.is_suspended,
+    accent: parseAccent(row.accent),
+    real_name: row.display_name_th ?? null,
+    student_id: row.student_id ?? null,
   };
 });
 
