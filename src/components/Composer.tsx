@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import clsx from 'clsx';
-import { Paperclip, ImagePlus, X, Loader2, CalendarClock, Plus, Globe, Star, Lock } from 'lucide-react';
+import { Paperclip, ImagePlus, X, Loader2, CalendarClock, Plus, Globe, Star, Lock, AlertCircle, FileText } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { createPost, type NewAttachment } from '@/actions/posts';
 import {
@@ -22,14 +22,35 @@ const VIS_ICON = { public: Globe, close: Star, private: Lock } as const;
 const MAX_FILE = 50 * 1024 * 1024;
 const MAX_IMAGE = 10 * 1024 * 1024;
 
+const ALLOWED_FILE_EXTENSIONS = ['.pdf', '.docx', '.pptx', '.zip', '.jpg', '.jpeg', '.png', '.webp', '.gif'];
+const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+
+function hasAllowedExtension(fileName: string, kind: 'file' | 'image'): boolean {
+  const idx = fileName.lastIndexOf('.');
+  if (idx < 0) return false;
+  const ext = fileName.slice(idx).toLowerCase();
+  return kind === 'image'
+    ? ALLOWED_IMAGE_EXTENSIONS.includes(ext)
+    : ALLOWED_FILE_EXTENSIONS.includes(ext);
+}
+
 export const COMPOSE_EVENT = 'backhome:compose';
 
 export function openComposer(tag?: PostTag) {
   window.dispatchEvent(new CustomEvent(COMPOSE_EVENT, { detail: { tag } }));
 }
 
-interface UploadedFile { id: string; file_name: string; mime_type: string | null; size_bytes: number }
-interface Staged extends NewAttachment { localId: string }
+interface UploadedFile {
+  id: string;
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number;
+  url?: string | null;
+}
+
+interface Staged extends NewAttachment {
+  localId: string;
+}
 
 export function ComposerTrigger({ me }: { me: Me }) {
   const t = useT();
@@ -69,12 +90,12 @@ export function ComposerTrigger({ me }: { me: Me }) {
 export function ComposerModal({ me, subjects }: { me: Me; subjects: Subject[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [initialTag, setInitialTag] = useState<PostTag>('general');
+  const [initialTag, setInitialTag] = useState<PostTag>('sheet');
 
   useEffect(() => {
     function onCompose(e: Event) {
       const tag = (e as CustomEvent<{ tag?: PostTag }>).detail?.tag;
-      setInitialTag(tag && (tag !== 'announce' || me.role !== 'student') ? tag : 'general');
+      setInitialTag(tag && (tag !== 'announce' || me.role !== 'student') ? tag : 'sheet');
       setOpen(true);
     }
     window.addEventListener(COMPOSE_EVENT, onCompose);
@@ -103,7 +124,6 @@ export function ComposerModal({ me, subjects }: { me: Me; subjects: Subject[] })
       aria-label={t('สร้างโพสต์')}
       onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
     >
-
       <div className="modal-panel card flex h-[100dvh] w-full max-w-[600px] flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[88dvh] sm:rounded-[18px]">
         <ComposerForm
           me={me}
@@ -136,6 +156,8 @@ function ComposerForm({
   const [staged, setStaged] = useState<Staged[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightMissingFile, setHighlightMissingFile] = useState(false);
+  const [highlightMissingTitle, setHighlightMissingTitle] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -146,16 +168,87 @@ function ComposerForm({
 
   const canPickVisibility = tag !== 'announce' && tag !== 'studybuddy';
 
-  const upload = useCallback(async (files: FileList | null, _kind: 'file' | 'image') => {
+  const upload = useCallback(async (files: FileList | null, kind: 'file' | 'image') => {
     if (!files?.length) return;
-    setError(t('แนบไฟล์ยังไม่เปิด — ยังไม่ได้ทำระบบเก็บไฟล์'));
-    setUploading(false);
-    if (fileRef.current) fileRef.current.value = '';
-    if (imageRef.current) imageRef.current.value = '';
+    setError(null);
+    setHighlightMissingFile(false);
+    setUploading(true);
+
+    const picked = Array.from(files);
+    const maxBytes = kind === 'image' ? MAX_IMAGE : MAX_FILE;
+    const limitLabel = kind === 'image' ? '10 MB' : '50 MB';
+
+    try {
+      for (const file of picked) {
+        //ตรวจสอบประเภทไฟล์ที่รองรับ (ปฏิเสธ .mp4 หรือไฟล์ที่ไม่รองรับทันที)
+        if (!hasAllowedExtension(file.name, kind)) {
+          setError(t('ประเภทไฟล์ไม่ถูกต้อง'));
+          continue;
+        }
+
+        //ตรวจสอบขนาดไฟล์เกินกำหนด
+        if (file.size > maxBytes) {
+          setError(t('{name} ใหญ่เกิน {size}', { name: file.name, size: limitLabel }));
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('kind', kind);
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const payload = (await res.json().catch(() => ({}))) as Partial<UploadedFile> & { error?: string };
+
+        if (!res.ok || !payload.id) {
+          setError(t(payload.error ?? 'อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง'));
+          continue;
+        }
+
+        setStaged((prev) => [
+          ...prev,
+          {
+            localId: `${payload.id}-${Date.now()}`,
+            kind,
+            file_id: payload.id!,
+            file_name: payload.file_name ?? file.name,
+            mime_type: payload.mime_type ?? (file.type || null),
+            size_bytes: payload.size_bytes ?? file.size,
+            url: payload.url ?? null,
+          },
+        ]);
+      }
+    } catch {
+      setError(t('อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง'));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+      if (imageRef.current) imageRef.current.value = '';
+    }
   }, [t]);
 
   function submit() {
     setError(null);
+    setHighlightMissingFile(false);
+    setHighlightMissingTitle(false);
+
+    // U2 Test Case 2: กรอกข้อมูลอื่นแต่ไม่ได้แนบไฟล์ ปฏิเสธการอัปโหลดและไฮไลต์แจ้งเตือน
+    if (tag === 'sheet') {
+      if (!title.trim()) {
+        setHighlightMissingTitle(true);
+        setError(t('กรุณากรอกชื่อชีทสรุปก่อนโพสต์'));
+        return;
+      }
+      if (staged.length === 0) {
+        setHighlightMissingFile(true);
+        setError(t('กรุณาแนบไฟล์สรุปอย่างน้อย 1 ไฟล์ก่อนกดยืนยัน'));
+        return;
+      }
+    }
+
     startTransition(async () => {
       const res = await createPost({
         tag,
@@ -168,12 +261,16 @@ function ComposerForm({
         capacity: capacity ? Number(capacity) : null,
         requiresApproval,
         visibility,
-        attachments: staged.map(({ localId, ...a }) => a),
+        attachments: staged.map(({ localId: _localId, ...a }) => a),
         options: tag === 'poll' ? pollOptions : undefined,
       });
-      if (!res.ok) { setError(t(res.error)); return; }
+      if (!res.ok) {
+        if (tag === 'sheet' && staged.length === 0) setHighlightMissingFile(true);
+        setError(t(res.error));
+        return;
+      }
       onClose();
-      if (pathname !== '/') router.push('/');
+      if (pathname !== '/' && !pathname.startsWith('/u/')) router.push('/');
       else router.refresh();
     });
   }
@@ -208,7 +305,12 @@ function ComposerForm({
             <button
               key={x}
               type="button"
-              onClick={() => setTag(x)}
+              onClick={() => {
+                setTag(x);
+                setError(null);
+                setHighlightMissingFile(false);
+                setHighlightMissingTitle(false);
+              }}
               className={clsx(
                 'chip px-3 py-1 text-xs font-semibold',
                 tag === x ? `${TAG_META[x].tone} ring-2 ring-brand-200` : 'bg-[color:var(--color-canvas)] text-ink-soft',
@@ -257,7 +359,10 @@ function ComposerForm({
         {tag !== 'general' ? (
           <input
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (highlightMissingTitle) setHighlightMissingTitle(false);
+            }}
             placeholder={t(
               tag === 'sheet' ? 'ชื่อชีท เช่น ชีทวิชา MATH102 (แคลคูลัส 1)'
                 : tag === 'qa' ? 'คำถามของคุณคือ...'
@@ -265,7 +370,10 @@ function ComposerForm({
                 : tag === 'poll' ? 'คำถามของโพลล์ เช่น จัดติวรอบไหนดี?'
                 : 'หัวข้อประกาศ',
             )}
-            className="input mt-3 font-medium"
+            className={clsx(
+              'input mt-3 font-medium',
+              highlightMissingTitle && 'ring-2 ring-red-500 bg-red-50/40',
+            )}
           />
         ) : null}
 
@@ -368,11 +476,31 @@ function ComposerForm({
           ) : null}
         </div>
 
+        {tag === 'sheet' ? (
+          <div
+            className={clsx(
+              'mt-3 flex items-center justify-between gap-2 rounded-2xl px-3.5 py-2.5 text-xs transition-all',
+              highlightMissingFile
+                ? 'bg-red-50 text-red-700 ring-2 ring-red-500'
+                : 'bg-[color:var(--color-canvas)] text-ink-soft',
+            )}
+          >
+            <span className="flex items-center gap-1.5 font-medium">
+              <FileText size={14} className={highlightMissingFile ? 'text-red-600' : 'text-brand-600'} />
+              {t('รองรับไฟล์สรุป PDF, DOCX, PPTX, ZIP (ไม่เกิน 50 MB) หรือรูปภาพ (ไม่เกิน 10 MB) · โพสต์พร้อมไฟล์รับ +10 ดาว')}
+            </span>
+          </div>
+        ) : null}
+
         {staged.length ? (
-          <ul className="mt-2 flex flex-wrap gap-2">
+          <ul className="mt-2.5 flex flex-wrap gap-2">
             {staged.map((a) => (
-              <li key={a.localId} className="flex items-center gap-2 rounded-xl bg-[color:var(--color-canvas)] px-3 py-1.5 text-xs">
-                <span className="max-w-[180px] truncate">{a.file_name}</span>
+              <li
+                key={a.localId}
+                className="flex items-center gap-2 rounded-xl bg-brand-50/70 px-3 py-1.5 text-xs ring-1 ring-brand-200"
+              >
+                <FileText size={13} className="shrink-0 text-brand-700" />
+                <span className="max-w-[200px] truncate font-medium">{a.file_name}</span>
                 <span className="text-ink-soft">{fileSize(a.size_bytes)}</span>
                 <button
                   type="button"
@@ -387,34 +515,62 @@ function ComposerForm({
           </ul>
         ) : null}
 
-        {error ? <p className="mt-2 text-sm text-brand-700">{error}</p> : null}
+        {error ? (
+          <div
+            role="alert"
+            className="mt-3 flex items-center gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 ring-1 ring-red-200"
+          >
+            <AlertCircle size={15} className="shrink-0 text-red-600" />
+            <span>{error}</span>
+          </div>
+        ) : null}
       </div>
 
       <div
         className="flex shrink-0 flex-wrap items-center gap-2 border-t border-[color:var(--color-line)] px-5 py-3"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
-          <input
-            ref={fileRef} type="file" hidden multiple
-            accept=".pdf,.docx,.pptx,.zip,image/*"
-            onChange={(e) => upload(e.target.files, 'file')}
-          />
-          <input
-            ref={imageRef} type="file" hidden multiple accept="image/*"
-            onChange={(e) => upload(e.target.files, 'image')}
-          />
-          <button type="button" onClick={() => fileRef.current?.click()} className="btn-soft text-xs">
-            <Paperclip size={15} /> {t('แนบไฟล์')}
-          </button>
-          <button type="button" onClick={() => imageRef.current?.click()} className="btn-soft text-xs">
-            <ImagePlus size={15} /> {t('เพิ่มรูปภาพ')}
-          </button>
+        <input
+          ref={fileRef}
+          type="file"
+          hidden
+          multiple
+          accept=".pdf,.docx,.pptx,.zip,image/*"
+          onChange={(e) => upload(e.target.files, 'file')}
+        />
+        <input
+          ref={imageRef}
+          type="file"
+          hidden
+          multiple
+          accept="image/*"
+          onChange={(e) => upload(e.target.files, 'image')}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          className={clsx(
+            'btn-soft text-xs transition-all',
+            highlightMissingFile && 'ring-2 ring-red-500 bg-red-50 text-red-700',
+          )}
+        >
+          <Paperclip size={15} /> {t('แนบไฟล์')}
+        </button>
+        <button
+          type="button"
+          onClick={() => imageRef.current?.click()}
+          disabled={busy}
+          className="btn-soft text-xs"
+        >
+          <ImagePlus size={15} /> {t('เพิ่มรูปภาพ')}
+        </button>
 
-          <button type="button" onClick={onClose} className="btn-ghost ml-auto text-xs">{t('ยกเลิก')}</button>
-          <button type="button" onClick={submit} disabled={busy} className="btn-primary px-7">
-            {busy ? <Loader2 size={15} className="animate-spin" /> : null}
-            {t(uploading ? 'กำลังอัปโหลด...' : pending ? 'กำลังโพสต์...' : 'โพสต์')}
-          </button>
+        <button type="button" onClick={onClose} className="btn-ghost ml-auto text-xs">{t('ยกเลิก')}</button>
+        <button type="button" onClick={submit} disabled={busy} className="btn-primary px-7">
+          {busy ? <Loader2 size={15} className="animate-spin" /> : null}
+          {t(uploading ? 'กำลังอัปโหลด...' : pending ? 'กำลังโพสต์...' : 'โพสต์')}
+        </button>
       </div>
     </>
   );
