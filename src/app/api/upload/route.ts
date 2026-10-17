@@ -8,8 +8,8 @@ import { rateLimit } from '@/lib/security';
 export const runtime = 'nodejs';
 
 const BUCKET = 'attachments';
-export const MAX_FILE_BYTES = 50 * 1024 * 1024;  // 50 MB สำหรับไฟล์ชีทสรุป (PDF, DOCX, PPTX, ZIP)
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB สำหรับรูปภาพ
+const MAX_FILE_BYTES = 50 * 1024 * 1024;  // 50 MB สำหรับไฟล์ชีทสรุป (PDF, DOCX, PPTX, ZIP)
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB สำหรับรูปภาพ
 
 const ALLOWED_DOCUMENT_MIMES: Record<string, string[]> = {
   '.pdf':  ['application/pdf'],
