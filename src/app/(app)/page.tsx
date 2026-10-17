@@ -47,12 +47,14 @@ export default async function FeedPage({
 
         <FeedList
           initial={posts}
+          meId={me.id}
+          isAdmin={me.role === 'admin'}
           emptyTitle={
             params.scope === 'bookmarks' ? 'ยังไม่มีโพสต์ที่บันทึกไว้'
               : params.scope === 'following' ? 'คนที่คุณติดตามยังไม่ได้โพสต์'
               : 'ยังไม่มีโพสต์ตรงนี้'
           }
-          emptyHint="ระบบโพสต์ยังไม่เปิด — ยังไม่มีตาราง posts ในฐานข้อมูล"
+          emptyHint="เป็นคนแรกที่โพสต์เลย"
         />
       </div>
 

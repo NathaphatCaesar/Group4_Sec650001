@@ -146,9 +146,43 @@ function ComposerForm({
 
   const canPickVisibility = tag !== 'announce' && tag !== 'studybuddy';
 
-  const upload = useCallback(async (files: FileList | null, _kind: 'file' | 'image') => {
+  const upload = useCallback(async (files: FileList | null, kind: 'file' | 'image') => {
     if (!files?.length) return;
-    setError(t('แนบไฟล์ยังไม่เปิด — ยังไม่ได้ทำระบบเก็บไฟล์'));
+    setError(null);
+    setUploading(true);
+
+    const limit = kind === 'image' ? MAX_IMAGE : MAX_FILE;
+    for (const file of Array.from(files)) {
+      if (file.size > limit) {
+        setError(t('{name} ใหญ่เกิน {size}', { name: file.name, size: fileSize(limit) }));
+        continue;
+      }
+      const form = new FormData();
+      form.append('file', file);
+      form.append('kind', kind);
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: form });
+        const json = (await res.json()) as Partial<UploadedFile> & { error?: string };
+        if (!res.ok || !json.id) {
+          setError(t(json.error ?? 'อัปโหลดไม่สำเร็จ'));
+          continue;
+        }
+        setStaged((prev) => [
+          ...prev,
+          {
+            localId: crypto.randomUUID(),
+            kind,
+            file_id: json.id as string,
+            file_name: json.file_name ?? file.name,
+            mime_type: json.mime_type ?? null,
+            size_bytes: json.size_bytes ?? file.size,
+          },
+        ]);
+      } catch {
+        setError(t('อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง'));
+      }
+    }
+
     setUploading(false);
     if (fileRef.current) fileRef.current.value = '';
     if (imageRef.current) imageRef.current.value = '';
