@@ -3,7 +3,19 @@ import { cache } from 'react';
 import { db } from '@/lib/supabase';
 import { currentUserId } from '@/lib/session';
 import { studyYear } from '@/lib/tu-api';
-import type { Faculty, Post, PostTag, FeedScope, FeedSort, Subject, UserRole } from '@/lib/types';
+import type {
+  Attachment,
+  Author,
+  Faculty,
+  FeedScope,
+  FeedSort,
+  Post,
+  PostTag,
+  PostVisibility,
+  ProfileView,
+  Subject,
+  UserRole,
+} from '@/lib/types';
 
 export interface Me {
   id: string;
@@ -36,15 +48,23 @@ export const getMe = cache(async (): Promise<Me | null> => {
 
   const { data } = await db()
     .from('profiles')
-    .select('id, username, display_name, avatar_url, role, role_override, faculty_id, faculty_name, entry_year_be, is_suspended')
+    .select('*')
     .eq('id', userId)
     .maybeSingle();
   if (!data) return null;
 
   const row = data as {
-    id: string; username: string; display_name: string; avatar_url: string | null;
-    role: UserRole; role_override: UserRole | null; faculty_id: string | null; faculty_name: string | null;
-    entry_year_be: number | null; is_suspended: boolean;
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url: string | null;
+    role: UserRole;
+    role_override: UserRole | null;
+    faculty_id: string | null;
+    faculty_name: string | null;
+    entry_year_be: number | null;
+    stars?: number | null;
+    is_suspended: boolean;
   };
   if (row.is_suspended) return null;
 
@@ -58,7 +78,7 @@ export const getMe = cache(async (): Promise<Me | null> => {
     faculty_id: row.faculty_id,
     faculty_name: row.faculty_name,
     study_year: studyYear(row.entry_year_be),
-    stars: 0,
+    stars: Number(row.stars ?? 0),
     is_suspended: row.is_suspended,
   };
 });
@@ -69,35 +89,325 @@ export const getFaculties = cache(async (): Promise<Faculty[]> => {
 });
 
 const SEED_SUBJECTS: Subject[] = [
-  ['MATH101', 'แคลคูลัสพื้นฐาน', 'sci', 'MATH'], ['MATH102', 'แคลคูลัส 1', 'sci', 'MATH'],
-  ['MATH103', 'แคลคูลัส 2', 'sci', 'MATH'], ['MATH216', 'พีชคณิตเชิงเส้น', 'sci', 'MATH'],
-  ['MA211', 'สถิติเบื้องต้น', 'sci', 'MATH'], ['PHY101', 'ฟิสิกส์ 1', 'sci', 'SCI'],
-  ['PHY102', 'ฟิสิกส์ 2', 'sci', 'SCI'], ['CHM103', 'เคมีพื้นฐาน', 'sci', 'SCI'],
-  ['BIO101', 'ชีววิทยาทั่วไป', 'sci', 'SCI'], ['CS101', 'ความรู้พื้นฐานคอมพิวเตอร์', 'sci', 'CS'],
-  ['CS102', 'การเขียนโปรแกรมเบื้องต้น', 'sci', 'CS'], ['CS213', 'โครงสร้างข้อมูล', 'sci', 'CS'],
-  ['CS284', 'ระบบฐานข้อมูล', 'sci', 'CS'], ['TU100', 'พลเมืองกับความรับผิดชอบต่อสังคม', null, 'GEN'],
-  ['TU101', 'โลก อาเซียน และไทย', null, 'GEN'], ['TU102', 'ทักษะชีวิตทางสังคม', null, 'GEN'],
-  ['TU103', 'ชีวิตกับความยั่งยืน', null, 'GEN'], ['TU104', 'สังคมกับการใช้เหตุผล', null, 'GEN'],
-  ['TU105', 'ทักษะการสื่อสารด้วยภาษาอังกฤษ', null, 'ENG'], ['TU106', 'ความคิดสร้างสรรค์และการสื่อสาร', null, 'GEN'],
-  ['EL070', 'ภาษาอังกฤษพื้นฐาน 1', 'arts', 'ENG'], ['EL171', 'ภาษาอังกฤษ 1', 'arts', 'ENG'],
-  ['EL172', 'ภาษาอังกฤษ 2', 'arts', 'ENG'], ['ENG230', 'การอ่านเชิงวิชาการ', 'arts', 'ENG'],
-  ['AC201', 'การบัญชีชั้นต้น', 'comm', 'BUS'], ['FN201', 'การเงินธุรกิจ', 'comm', 'BUS'],
-  ['MK201', 'หลักการตลาด', 'comm', 'BUS'], ['EC210', 'เศรษฐศาสตร์จุลภาค', 'econ', 'ECON'],
-  ['EC211', 'เศรษฐศาสตร์มหภาค', 'econ', 'ECON'], ['LA200', 'กฎหมายแพ่งหลักทั่วไป', 'law', 'LAW'],
-  ['LA201', 'กฎหมายอาญาภาคทั่วไป', 'law', 'LAW'], ['EG101', 'กลศาสตร์วิศวกรรม', 'engr', 'ENGR'],
+  ['MATH101', 'แคลคูลัสพื้นฐาน', 'sci', 'MATH'],
+  ['MATH102', 'แคลคูลัส 1', 'sci', 'MATH'],
+  ['MATH103', 'แคลคูลัส 2', 'sci', 'MATH'],
+  ['MATH216', 'พีชคณิตเชิงเส้น', 'sci', 'MATH'],
+  ['MA211', 'สถิติเบื้องต้น', 'sci', 'MATH'],
+  ['PHY101', 'ฟิสิกส์ 1', 'sci', 'SCI'],
+  ['PHY102', 'ฟิสิกส์ 2', 'sci', 'SCI'],
+  ['CHM103', 'เคมีพื้นฐาน', 'sci', 'SCI'],
+  ['BIO101', 'ชีววิทยาทั่วไป', 'sci', 'SCI'],
+  ['CS101', 'ความรู้พื้นฐานคอมพิวเตอร์', 'sci', 'CS'],
+  ['CS102', 'การเขียนโปรแกรมเบื้องต้น', 'sci', 'CS'],
+  ['CS213', 'โครงสร้างข้อมูล', 'sci', 'CS'],
+  ['CS261', 'วิศวกรรมซอฟต์แวร์เบื้องต้น', 'sci', 'CS'],
+  ['CS284', 'ระบบฐานข้อมูล', 'sci', 'CS'],
+  ['TU100', 'พลเมืองกับความรับผิดชอบต่อสังคม', null, 'GEN'],
+  ['TU101', 'โลก อาเซียน และไทย', null, 'GEN'],
+  ['TU102', 'ทักษะชีวิตทางสังคม', null, 'GEN'],
+  ['TU103', 'ชีวิตกับความยั่งยืน', null, 'GEN'],
+  ['TU104', 'สังคมกับการใช้เหตุผล', null, 'GEN'],
+  ['TU105', 'ทักษะการสื่อสารด้วยภาษาอังกฤษ', null, 'ENG'],
+  ['TU106', 'ความคิดสร้างสรรค์และการสื่อสาร', null, 'GEN'],
+  ['EL070', 'ภาษาอังกฤษพื้นฐาน 1', 'arts', 'ENG'],
+  ['EL171', 'ภาษาอังกฤษ 1', 'arts', 'ENG'],
+  ['EL172', 'ภาษาอังกฤษ 2', 'arts', 'ENG'],
+  ['ENG230', 'การอ่านเชิงวิชาการ', 'arts', 'ENG'],
+  ['AC201', 'การบัญชีชั้นต้น', 'comm', 'BUS'],
+  ['FN201', 'การเงินธุรกิจ', 'comm', 'BUS'],
+  ['MK201', 'หลักการตลาด', 'comm', 'BUS'],
+  ['EC210', 'เศรษฐศาสตร์จุลภาค', 'econ', 'ECON'],
+  ['EC211', 'เศรษฐศาสตร์มหภาค', 'econ', 'ECON'],
+  ['LA200', 'กฎหมายแพ่งหลักทั่วไป', 'law', 'LAW'],
+  ['LA201', 'กฎหมายอาญาภาคทั่วไป', 'law', 'LAW'],
+  ['EG101', 'กลศาสตร์วิศวกรรม', 'engr', 'ENGR'],
   ['EG102', 'เขียนแบบวิศวกรรม', 'engr', 'ENGR'],
 ].map(([code, name_th, faculty_id, group_code]) => ({
-  code: code as string, name_th: name_th as string, faculty_id, group_code,
+  code: code as string,
+  name_th: name_th as string,
+  faculty_id,
+  group_code,
 }));
 
 export const getSubjects = cache(async (): Promise<Subject[]> => {
-  const { data, error } = await db().from('subjects').select('code, name_th, faculty_id, group_code').order('code');
+  const { data, error } = await db()
+    .from('subjects')
+    .select('code, name_th, faculty_id, group_code')
+    .order('code');
   if (error || !data?.length) return SEED_SUBJECTS;
   return data as Subject[];
 });
 
-export async function getFeed(_params: FeedParams): Promise<Post[]> {
-  return [];
+interface RawPostRow {
+  id: string;
+  author_id: string;
+  tag: PostTag;
+  visibility: PostVisibility;
+  announce_until: string | null;
+  title: string | null;
+  body: string;
+  subject_code: string | null;
+  faculty_id: string | null;
+  meet_at: string | null;
+  meet_place: string | null;
+  capacity: number | null;
+  requires_approval: boolean;
+  ended_at: string | null;
+  chat_expires_at: string | null;
+  conversation_id: string | null;
+  accepted_comment_id: string | null;
+  like_count: number;
+  comment_count: number;
+  share_count: number;
+  is_pinned: boolean;
+  is_hidden: boolean;
+  created_at: string;
+}
+
+interface RawAttachmentRow {
+  id: string;
+  post_id: string;
+  file_id: string;
+  kind: 'file' | 'image';
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  sort_order: number;
+}
+
+async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
+  if (!rows.length) return [];
+
+  const postIds = rows.map((r) => r.id);
+  const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
+
+  const [subjects, { data: profilesData }, { data: attachData }] = await Promise.all([
+    getSubjects(),
+    db().from('profiles').select('*').in('id', authorIds),
+    db()
+      .from('post_attachments')
+      .select('id, post_id, file_id, kind, file_name, mime_type, size_bytes, sort_order')
+      .in('post_id', postIds)
+      .order('sort_order', { ascending: true }),
+  ]);
+
+  const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
+  const authorMap = new Map<string, Author>();
+
+  for (const p of (profilesData ?? []) as Array<Record<string, unknown>>) {
+    const id = String(p.id);
+    const role = ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+    authorMap.set(id, {
+      id,
+      username: String(p.username ?? 'user'),
+      display_name: String(p.display_name ?? 'ผู้ใช้'),
+      avatar_url: (p.avatar_url as string | null) ?? null,
+      equipped_frame: null,
+      role,
+      faculty_id: (p.faculty_id as string | null) ?? null,
+      faculty_name: (p.faculty_name as string | null) ?? null,
+      study_year: studyYear((p.entry_year_be as number | null) ?? null),
+      stars: Number(p.stars ?? 0),
+    });
+  }
+
+  const rawAttachments = (attachData ?? []) as RawAttachmentRow[];
+  const fileIds = Array.from(new Set(rawAttachments.map((a) => a.file_id).filter(Boolean)));
+  const fileUrlMap = new Map<string, string>();
+
+  if (fileIds.length > 0) {
+    const { data: filesData } = await db()
+      .from('files')
+      .select('id, public_url')
+      .in('id', fileIds);
+    for (const f of (filesData ?? []) as Array<{ id: string; public_url: string }>) {
+      fileUrlMap.set(f.id, f.public_url);
+    }
+  }
+
+  const attachmentsByPost = new Map<string, Attachment[]>();
+  for (const a of rawAttachments) {
+    const list = attachmentsByPost.get(a.post_id) ?? [];
+    list.push({
+      id: a.id,
+      kind: a.kind,
+      file_id: a.file_id,
+      file_name: a.file_name,
+      mime_type: a.mime_type,
+      size_bytes: a.size_bytes !== null ? Number(a.size_bytes) : null,
+      url: fileUrlMap.get(a.file_id) ?? `/api/files/${a.file_id}`,
+    });
+    attachmentsByPost.set(a.post_id, list);
+  }
+
+  return rows.map((r) => {
+    const fallbackAuthor: Author = {
+      id: r.author_id,
+      username: 'user',
+      display_name: 'นักศึกษา มธ.',
+      avatar_url: null,
+      equipped_frame: null,
+      role: 'student',
+      faculty_id: r.faculty_id,
+      faculty_name: null,
+      study_year: null,
+      stars: 0,
+    };
+
+    return {
+      id: r.id,
+      tag: r.tag,
+      visibility: r.visibility,
+      announce_until: r.announce_until,
+      title: r.title,
+      body: r.body,
+      subject_code: r.subject_code,
+      subject_name: r.subject_code ? (subjectMap.get(r.subject_code) ?? null) : null,
+      faculty_id: r.faculty_id,
+      meet_at: r.meet_at,
+      meet_place: r.meet_place,
+      capacity: r.capacity,
+      requires_approval: Boolean(r.requires_approval),
+      signup_count: 0,
+      pending_count: 0,
+      my_signup_status: 'none',
+      ended_at: r.ended_at,
+      chat_expires_at: r.chat_expires_at,
+      is_signed_up: false,
+      conversation_id: r.conversation_id,
+      accepted_comment_id: r.accepted_comment_id,
+      like_count: Number(r.like_count ?? 0),
+      comment_count: Number(r.comment_count ?? 0),
+      share_count: Number(r.share_count ?? 0),
+      is_pinned: Boolean(r.is_pinned),
+      created_at: r.created_at,
+      liked: false,
+      bookmarked: false,
+      poll: null,
+      author: authorMap.get(r.author_id) ?? fallbackAuthor,
+      attachments: attachmentsByPost.get(r.id) ?? [],
+    };
+  });
+}
+
+export async function getFeed(params: FeedParams): Promise<Post[]> {
+  try {
+    const me = await getMe();
+    let query = db()
+      .from('posts')
+      .select('*')
+      .eq('is_hidden', false);
+
+    if (params.tag) {
+      query = query.eq('tag', params.tag);
+    }
+    if (params.subject) {
+      query = query.eq('subject_code', params.subject);
+    }
+    if (params.faculty) {
+      query = query.eq('faculty_id', params.faculty);
+    }
+    if (params.group) {
+      const subjects = await getSubjects();
+      const codes = subjects.filter((s) => s.group_code === params.group).map((s) => s.code);
+      if (codes.length > 0) {
+        query = query.in('subject_code', codes);
+      } else {
+        return [];
+      }
+    }
+
+    if (params.sort === 'top') {
+      query = query
+        .order('is_pinned', { ascending: false })
+        .order('like_count', { ascending: false })
+        .order('created_at', { ascending: false });
+    } else {
+      query = query
+        .order('is_pinned', { ascending: false })
+        .order('created_at', { ascending: false });
+    }
+
+    const from = Math.max(0, params.offset);
+    const to = from + Math.max(1, params.limit) - 1;
+    const { data, error } = await query.range(from, to);
+
+    if (error || !data) return [];
+
+    const visibleRows = (data as RawPostRow[]).filter(
+      (r) => r.visibility === 'public' || (me && r.author_id === me.id),
+    );
+
+    return hydratePosts(visibleRows);
+  } catch {
+    return [];
+  }
+}
+
+export async function getUserProfileAndPosts(
+  username: string,
+): Promise<{ profile: ProfileView; posts: Post[]; sheets: Post[] } | null> {
+  const me = await getMe();
+
+  const { data: userRow } = await db()
+    .from('profiles')
+    .select('*')
+    .eq('username', username.toLowerCase())
+    .maybeSingle();
+
+  if (!userRow) return null;
+
+  const p = userRow as Record<string, unknown>;
+  const userId = String(p.id);
+  const isMe = Boolean(me && me.id === userId);
+  const role = ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+
+  const { data: postRows } = await db()
+    .from('posts')
+    .select('*')
+    .eq('author_id', userId)
+    .eq('is_hidden', false)
+    .order('created_at', { ascending: false });
+
+  const filteredRows = ((postRows ?? []) as RawPostRow[]).filter(
+    (r) => r.visibility === 'public' || isMe,
+  );
+
+  const hydrated = await hydratePosts(filteredRows);
+  const sheets = hydrated.filter((post) => post.tag === 'sheet' && post.attachments.length > 0);
+
+  const profile: ProfileView = {
+    id: userId,
+    username: String(p.username ?? username),
+    display_name: String(p.display_name ?? username),
+    real_name: isMe ? ((p.display_name_th as string | null) ?? null) : null,
+    avatar_url: (p.avatar_url as string | null) ?? null,
+    equipped_frame: null,
+    bio: (p.bio as string | null) ?? null,
+    role,
+    faculty_id: (p.faculty_id as string | null) ?? null,
+    faculty_name: (p.faculty_name as string | null) ?? null,
+    department: (p.department as string | null) ?? null,
+    level_name: (p.level_name as string | null) ?? null,
+    study_year: studyYear((p.entry_year_be as number | null) ?? null),
+    stars: Number(p.stars ?? 0),
+    created_at: String(p.created_at ?? new Date().toISOString()),
+    post_count: hydrated.length,
+    sheet_count: sheets.length,
+    follower_count: 0,
+    following_count: 0,
+    rank: 1,
+    is_following: false,
+    is_me: isMe,
+    is_private: false,
+    can_view: true,
+    follow_state: 'none',
+    is_close_friend: false,
+    request_count: 0,
+  };
+
+  return { profile, posts: hydrated, sheets };
 }
 
 export interface SuggestedUser {
