@@ -387,6 +387,26 @@ export async function getUserProfileAndPosts(
   const hydrated = await hydratePosts(filteredRows);
   const sheets = hydrated.filter((post) => post.tag === 'sheet' && post.attachments.length > 0);
 
+  const [followersRes, followingRes] = await Promise.all([
+    db().from('follows').select('id', { count: 'exact', head: true }).eq('following_id', userId),
+    db().from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', userId),
+  ]);
+  
+  const followerCount = followersRes.count ?? 0;
+  const followingCount = followingRes.count ?? 0;
+
+  let isFollowing = false;
+  if (me && !isMe) {
+    const { data: followRow } = await db()
+      .from('follows')
+      .select('id')
+      .eq('follower_id', me.id)
+      .eq('following_id', userId)
+      .maybeSingle();
+    
+    isFollowing = Boolean(followRow);
+  }
+
   const profile: ProfileView = {
     id: userId,
     username: String(p.username ?? username),
@@ -405,10 +425,10 @@ export async function getUserProfileAndPosts(
     created_at: String(p.created_at ?? new Date().toISOString()),
     post_count: hydrated.length,
     sheet_count: sheets.length,
-    follower_count: 0,
-    following_count: 0,
+    follower_count: followerCount,
+    following_count: followingCount,
     rank: 1,
-    is_following: false,
+    is_following: isFollowing,
     is_me: isMe,
     is_private: false,
     can_view: true,
