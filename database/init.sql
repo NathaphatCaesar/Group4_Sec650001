@@ -55,14 +55,16 @@ create index if not exists sessions_user_idx    on sessions(user_id);
 create index if not exists sessions_expires_idx on sessions(expires_at);
 
 create table if not exists follows (
+  id           uuid primary key default gen_random_uuid(),
   follower_id  uuid not null references profiles(id) on delete cascade,
   following_id uuid not null references profiles(id) on delete cascade,
   created_at   timestamptz not null default now(),
-  primary key (follower_id, following_id),
+  constraint follows_pair_key unique (follower_id, following_id),
   constraint follows_no_self_follow check (follower_id <> following_id)
 );
 
 create index if not exists follows_following_idx on follows(following_id, created_at desc);
+create index if not exists follows_follower_idx on follows(follower_id, created_at desc);
 alter table follows enable row level security;
 revoke all on table follows from anon, authenticated;
 alter table faculties enable row level security;
