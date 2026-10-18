@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import clsx from 'clsx';
@@ -77,13 +78,15 @@ export function PostCard({
       ) : null}
 
       <div className="flex items-start gap-3 px-5 pt-4">
-        <span className="shrink-0">
+        <Link href={`/u/${post.author.username}`} className="shrink-0">
           <Avatar name={post.author.display_name} src={post.author.avatar_url} size={42} />
-        </span>
+        </Link>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[15px] font-semibold">{post.author.display_name}</span>
+            <Link href={`/u/${post.author.username}`} className="truncate text-[15px] font-semibold hover:underline">
+              {post.author.display_name}
+            </Link>
             <span className="hidden truncate text-xs text-ink-soft sm:inline">@{post.author.username}</span>
             <span className="text-xs text-ink-soft">· {timeAgo(post.created_at, locale)}</span>
             {post.visibility !== 'public' ? (
