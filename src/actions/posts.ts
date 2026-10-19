@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/supabase';
 import { getMe } from '@/lib/data';
-import { TAG_ORDER, VISIBILITY_ORDER, type PostTag, type PostVisibility } from '@/lib/types';
+import { TAG_ORDER, type PostTag } from '@/lib/types';
 
 export interface NewAttachment {
   kind: 'file' | 'image';
@@ -24,7 +24,6 @@ export interface CreatePostInput {
   meetPlace: string | null;
   capacity: number | null;
   requiresApproval: boolean;
-  visibility: PostVisibility;
   attachments: NewAttachment[];
   options?: string[];
 }
@@ -44,13 +43,6 @@ export async function createPost(
   if (tag === 'announce' && me.role === 'student') {
     return { ok: false, error: 'โพสต์ #ประกาศ ได้เฉพาะอาจารย์และเจ้าหน้าที่' };
   }
-
-  const visibility: PostVisibility =
-    tag === 'announce' || tag === 'studybuddy'
-      ? 'public'
-      : VISIBILITY_ORDER.includes(rawInput.visibility)
-      ? rawInput.visibility
-      : 'public';
 
   const title = rawInput.title?.trim() ? rawInput.title.trim().slice(0, 160) : null;
   const body = (rawInput.body ?? '').trim().slice(0, 5000);
@@ -101,7 +93,7 @@ export async function createPost(
     .insert({
       author_id: me.id,
       tag,
-      visibility,
+      visibility: 'public',
       title,
       body,
       subject_code: subjectCode,

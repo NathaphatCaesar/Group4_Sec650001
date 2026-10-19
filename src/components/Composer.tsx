@@ -3,13 +3,13 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import clsx from 'clsx';
-import { Paperclip, ImagePlus, X, Loader2, CalendarClock, Plus, Globe, Star, Lock } from 'lucide-react';
+import { Paperclip, ImagePlus, X, Loader2, CalendarClock, Plus, Globe } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { createPost, type NewAttachment } from '@/actions/posts';
 import {
-  TAG_META, TAG_ORDER, VISIBILITY_META, VISIBILITY_ORDER,
+  TAG_META, TAG_ORDER,
   POLL_MIN_OPTIONS, POLL_MAX_OPTIONS, POLL_OPTION_MAX,
-  type PostTag, type PostVisibility,
+  type PostTag,
 } from '@/lib/types';
 import { TagIcon } from '@/components/TagIcon';
 import { fileSize } from '@/lib/utils';
@@ -17,7 +17,6 @@ import type { Me } from '@/lib/data';
 import type { Subject } from '@/lib/types';
 import { useT } from '@/lib/i18n/client';
 
-const VIS_ICON = { public: Globe, close: Star, private: Lock } as const;
 
 const MAX_FILE = 50 * 1024 * 1024;
 const MAX_IMAGE = 10 * 1024 * 1024;
@@ -131,7 +130,6 @@ function ComposerForm({
   const [meetPlace, setMeetPlace] = useState('');
   const [capacity, setCapacity] = useState('');
   const [requiresApproval, setRequiresApproval] = useState(false);
-  const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const [staged, setStaged] = useState<Staged[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -144,7 +142,6 @@ function ComposerForm({
   const canAnnounce = me.role !== 'student';
   const tags = TAG_ORDER.filter((t) => t !== 'announce' || canAnnounce);
 
-  const canPickVisibility = tag !== 'announce' && tag !== 'studybuddy';
 
   const upload = useCallback(async (files: FileList | null, kind: 'file' | 'image') => {
     if (!files?.length) return;
@@ -201,7 +198,6 @@ function ComposerForm({
         meetPlace: meetPlace || null,
         capacity: capacity ? Number(capacity) : null,
         requiresApproval,
-        visibility,
         attachments: staged.map(({ localId, ...a }) => a),
         options: tag === 'poll' ? pollOptions : undefined,
       });
@@ -253,40 +249,10 @@ function ComposerForm({
           ))}
         </div>
 
-        {canPickVisibility ? (
-          <div className="mt-3 rounded-2xl bg-[color:var(--color-canvas)] px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-ink-soft">{t('ใครเห็นโพสต์นี้ได้')}</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {VISIBILITY_ORDER.map((v) => {
-                const Icon = VIS_ICON[v];
-                return (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setVisibility(v)}
-                    aria-pressed={visibility === v}
-                    className={clsx(
-                      'chip px-3 py-1 text-xs font-semibold',
-                      visibility === v
-                        ? 'bg-white text-brand-700 ring-2 ring-brand-200'
-                        : 'text-ink-soft',
-                    )}
-                  >
-                    <Icon size={13} /> {t(VISIBILITY_META[v].label)}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-[11px] text-ink-soft">{t(VISIBILITY_META[visibility].hint)}</p>
-          </div>
-        ) : (
-          <p className="mt-3 flex items-center gap-1.5 rounded-2xl bg-[color:var(--color-canvas)] px-3.5 py-2.5 text-[11px] text-ink-soft">
-            <Globe size={13} />
-            {t(tag === 'announce'
-              ? 'ประกาศต้องเป็นสาธารณะเสมอ — คน มธ. ทุกคนเห็นได้'
-              : 'โพสต์หาเพื่อนติวต้องเป็นสาธารณะ ไม่งั้นไม่มีใครมาเข้าร่วมได้')}
-          </p>
-        )}
+        <p className="mt-3 flex items-center gap-1.5 rounded-2xl bg-[color:var(--color-canvas)] px-3.5 py-2.5 text-[11px] text-ink-soft">
+          <Globe size={13} />
+          {t('สาธารณะ')} · {t('คน มธ. ทุกคนเห็นได้')}
+        </p>
 
         {tag !== 'general' ? (
           <input

@@ -3,7 +3,6 @@ export type PostTag = 'sheet' | 'studybuddy' | 'qa' | 'poll' | 'announce' | 'gen
 export type FeedScope = 'all' | 'following' | 'bookmarks';
 export type FeedSort = 'new' | 'top';
 
-export type PostVisibility = 'public' | 'close' | 'private';
 export type FollowState = 'none' | 'requested' | 'following';
 export type SignupStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
@@ -27,16 +26,6 @@ export const TAG_META: Record<PostTag, { label: string; hash: string; icon: TagI
 };
 
 export const TAG_ORDER: PostTag[] = ['sheet', 'studybuddy', 'qa', 'poll', 'announce', 'general'];
-
-export type VisibilityIconName = 'Globe' | 'Star' | 'Lock';
-
-export const VISIBILITY_META: Record<PostVisibility, { label: string; hint: string; icon: VisibilityIconName }> = {
-  public:  { label: 'สาธารณะ',  hint: 'คน มธ. ทุกคนเห็นได้',            icon: 'Globe' },
-  close:   { label: 'เพื่อนสนิท', hint: 'เฉพาะคนในรายชื่อเพื่อนสนิทของคุณ', icon: 'Star' },
-  private: { label: 'ส่วนตัว',   hint: 'เห็นคนเดียว ไม่มีใครเห็นอีก',      icon: 'Lock' },
-};
-
-export const VISIBILITY_ORDER: PostVisibility[] = ['public', 'close', 'private'];
 
 export const NOTE_MAX = 60;
 
@@ -85,7 +74,6 @@ export const POLL_OPTION_MAX = 80;
 export interface Post {
   id: string;
   tag: PostTag;
-  visibility: PostVisibility;
 
   announce_until: string | null;
   title: string | null;
@@ -264,16 +252,6 @@ export interface StudySession {
   conversation_id: string | null;
   is_past: boolean;
   author: Pick<Author, 'id' | 'username' | 'display_name' | 'avatar_url' | 'role' | 'study_year' | 'faculty_name'>;
-}
-
-export interface Note {
-  id: string;
-  body: string;
-  visibility: PostVisibility;
-  created_at: string;
-  expires_at: string;
-  is_mine: boolean;
-  author: Pick<Author, 'id' | 'username' | 'display_name' | 'avatar_url' | 'role' | 'faculty_name' | 'study_year'>;
 }
 
 export type PersonCard = Pick<

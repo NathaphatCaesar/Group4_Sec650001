@@ -1,9 +1,8 @@
-<<<<<<< Updated upstream
-# VS Code
-.vscode/
-
 # Environment / secrets
 .env
+.env.*
+!.env.example
+!.env.enc
 
 # Node
 node_modules/
@@ -11,22 +10,14 @@ node_modules/
 # Python
 __pycache__/
 *.pyc
-=======
-.env
-.env.*
-!.env.example
-
-node_modules/
-__pycache__/
-*.pyc
 .venv/
 venv/
 
+# Editor / OS
 .DS_Store
 .vscode/
 .idea/
 *.log
->>>>>>> Stashed changes
 
 .next/
 out/

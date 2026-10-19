@@ -6,13 +6,13 @@ import { useState, useTransition } from 'react';
 import clsx from 'clsx';
 import {
   Heart, MessageCircle, Share2, MoreHorizontal, Download,
-  FileText, CalendarClock, MapPin, Users, Trash2, Pin, Star, Lock, Megaphone,
+  FileText, CalendarClock, MapPin, Users, Trash2, Pin, Megaphone,
 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { RoleBadge } from '@/components/RoleBadge';
 import { TagChip } from '@/components/TagChip';
 import { timeAgo, fileSize, compact, meetDate } from '@/lib/utils';
-import { VISIBILITY_META, type Post } from '@/lib/types';
+import type { Post } from '@/lib/types';
 import { deletePost } from '@/actions/posts';
 import { useT, useLocale } from '@/lib/i18n/client';
 
@@ -89,20 +89,6 @@ export function PostCard({
             </Link>
             <span className="hidden truncate text-xs text-ink-soft sm:inline">@{post.author.username}</span>
             <span className="text-xs text-ink-soft">· {timeAgo(post.created_at, locale)}</span>
-            {post.visibility !== 'public' ? (
-              <span
-                title={t(VISIBILITY_META[post.visibility].hint)}
-                className={clsx(
-                  'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                  post.visibility === 'close'
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-[color:var(--color-canvas)] text-ink-soft',
-                )}
-              >
-                {post.visibility === 'close' ? <Star size={9} /> : <Lock size={9} />}
-                {t(VISIBILITY_META[post.visibility].label)}
-              </span>
-            ) : null}
           </div>
           <RoleBadge
             role={post.author.role}

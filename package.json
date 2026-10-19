@@ -6,7 +6,9 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "setup": "node scripts/setup.mjs",
+    "env:encrypt": "node scripts/env-encrypt.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.4",

@@ -12,7 +12,6 @@ import type {
   FeedSort,
   Post,
   PostTag,
-  PostVisibility,
   ProfileView,
   Subject,
   UserRole,
@@ -153,7 +152,7 @@ interface RawPostRow {
   id: string;
   author_id: string;
   tag: PostTag;
-  visibility: PostVisibility;
+  visibility: string;
   announce_until: string | null;
   title: string | null;
   body: string;
@@ -268,7 +267,6 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
     return {
       id: r.id,
       tag: r.tag,
-      visibility: r.visibility,
       announce_until: r.announce_until,
       title: r.title,
       body: r.body,

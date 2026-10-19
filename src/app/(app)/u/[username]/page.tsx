@@ -57,7 +57,7 @@ export default async function ProfilePage({
             />
             <div className="flex items-center gap-2 pb-1">
               {profile.is_me ? (
-                <Link href="/settings" className="btn-outline px-5 py-2 text-sm">{t('ตั้งค่า')}</Link>
+                <Link href="/settings" className="btn-outline px-5 py-2 text-sm">{t('แก้ไขโปรไฟล์')}</Link>
               ) : (
                 <FollowButton targetId={profile.id} initial={profile.is_following} size="md" />
               )}
