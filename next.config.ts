@@ -3,6 +3,8 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: process.cwd(),
+  // middleware ตัด body ที่ 10MB เป็นค่าเริ่มต้น ทำให้อัปโหลดไฟล์ใหญ่พัง
+  experimental: { middlewareClientMaxBodySize: '60mb' },
   async headers() {
     return [
       {

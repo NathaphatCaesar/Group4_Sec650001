@@ -133,6 +133,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // กรณีไฟล์ใหญ่เกินกำหนด ให้ปฏิเสธจาก Content-Length ก่อนอ่าน body
+    const contentLength = Number(request.headers.get('content-length') ?? 0);
+    if (contentLength > MAX_FILE_BYTES + 1024 * 1024) {
+      return NextResponse.json(
+        { error: 'ไฟล์ใหญ่เกิน 50 MB' },
+        { status: 413 },
+      );
+    }
+
     let formData: FormData;
     try {
       formData = await request.formData();
