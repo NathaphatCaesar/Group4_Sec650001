@@ -1,3 +1,5 @@
+name: backhome
+
 services:
   web:
     build: .
@@ -9,14 +11,19 @@ services:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
 
-  # สร้าง .env จาก .env.enc โดยไม่ต้องมี Node/npm ในเครื่อง:
+  # สร้าง .env จาก .env.enc แล้วเลือกเปิดเว็บต่อได้ โดยไม่ต้องมี Node/npm ในเครื่อง:
   #   docker compose run --rm setup
   setup:
-    image: node:22-alpine
+    build:
+      context: .
+      dockerfile: scripts/setup.Dockerfile
     profiles: ["tools"]
     working_dir: /app
     volumes:
       - ./:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WEB_PORT=${WEB_PORT:-3000}
     stdin_open: true
     tty: true
     command: node scripts/setup.mjs
