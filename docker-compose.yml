@@ -11,8 +11,6 @@ services:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
 
-  # สร้าง .env จาก .env.enc แล้วเลือกเปิดเว็บต่อได้ โดยไม่ต้องมี Node/npm ในเครื่อง:
-  #   docker compose run --rm setup
   setup:
     build:
       context: .
