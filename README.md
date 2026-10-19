@@ -26,3 +26,10 @@ docker compose up --build
 npm run setup        # ใส่รหัสผ่าน → สร้าง .env
 npm run env:encrypt  # หลังแก้ .env → อัปเดต .env.enc แล้ว commit
 ```
+
+เครื่องที่ไม่มี Node/npm ใช้ Docker แทนได้:
+
+```bash
+docker compose run --rm setup   # ใส่รหัสผ่าน → สร้าง .env
+docker compose up --build
+```

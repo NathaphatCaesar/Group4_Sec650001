@@ -2,7 +2,21 @@ services:
   web:
     build: .
     container_name: backhome-web
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
+
+  # สร้าง .env จาก .env.enc โดยไม่ต้องมี Node/npm ในเครื่อง:
+  #   docker compose run --rm setup
+  setup:
+    image: node:22-alpine
+    profiles: ["tools"]
+    working_dir: /app
+    volumes:
+      - ./:/app
+    stdin_open: true
+    tty: true
+    command: node scripts/setup.mjs
