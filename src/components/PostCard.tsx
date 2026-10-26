@@ -6,7 +6,7 @@ import { useState, useTransition } from 'react';
 import clsx from 'clsx';
 import {
   Heart, MessageCircle, Share2, MoreHorizontal, Download,
-  FileText, CalendarClock, MapPin, Users, Trash2, Pin, Megaphone,
+  FileText, CalendarClock, MapPin, Users, Trash2, Pin, Megaphone, Flag,
 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { RoleBadge } from '@/components/RoleBadge';
@@ -14,6 +14,7 @@ import { TagChip } from '@/components/TagChip';
 import { timeAgo, fileSize, compact, meetDate } from '@/lib/utils';
 import type { Post } from '@/lib/types';
 import { deletePost } from '@/actions/posts';
+import { ReportDialog } from '@/components/ReportDialog';
 import { useT, useLocale } from '@/lib/i18n/client';
 
 function downloadUrl(url: string, name: string) {
@@ -33,9 +34,11 @@ export function PostCard({
   const [confirming, setConfirming] = useState(false);
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
 
   const isMine = meId === post.author.id;
   const canDelete = isMine || isAdmin;
+  const canReport = Boolean(meId) && !isMine;
   const announceDays = post.announce_until
     ? Math.max(1, Math.ceil((new Date(post.announce_until).getTime() - Date.now()) / 86_400_000))
     : 0;
@@ -98,7 +101,7 @@ export function PostCard({
           />
         </div>
 
-        {canDelete ? (
+        {canDelete || canReport ? (
           <div className="relative">
             <button
               type="button"
@@ -127,13 +130,26 @@ export function PostCard({
                       </div>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50"
-                      onClick={() => setConfirming(true)}
-                    >
-                      <Trash2 size={15} /> {t('ลบโพสต์')}
-                    </button>
+                    <>
+                      {canReport ? (
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 hover:bg-brand-50"
+                          onClick={() => { closeMenu(); setReporting(true); }}
+                        >
+                          <Flag size={15} /> {t('รายงานโพสต์')}
+                        </button>
+                      ) : null}
+                      {canDelete ? (
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50"
+                          onClick={() => setConfirming(true)}
+                        >
+                          <Trash2 size={15} /> {t('ลบโพสต์')}
+                        </button>
+                      ) : null}
+                    </>
                   )}
                 </div>
               </>
@@ -141,6 +157,14 @@ export function PostCard({
           </div>
         ) : null}
       </div>
+
+      {reporting ? (
+        <ReportDialog
+          postId={post.id}
+          onClose={() => setReporting(false)}
+          onGone={() => { setGone(true); router.refresh(); }}
+        />
+      ) : null}
 
       <div className="px-5 pb-1 pt-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
