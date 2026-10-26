@@ -573,6 +573,12 @@ export const EN: Record<string, string> = {
   'แนะนำตัว': 'Bio',
   'เรียนอะไร สนใจอะไร ติวให้ใครได้บ้าง...': 'What you study, what you are into, what you can tutor...',
   'เปลี่ยนรูปโปรไฟล์': 'Change photo',
+  'รูปโปรไฟล์ต้องมีขนาดไม่เกิน 2 MB': 'Profile photo must be 2 MB or smaller',
+  'กรุณาเลือกไฟล์รูปภาพ': 'Please choose an image file',
+  'คนอื่นเห็นชื่อนี้ · {count}/{max}': 'This is the name others see · {count}/{max}',
+  'role คณะ และชั้นปีมาจากบัญชี มธ. โดยอัตโนมัติและแก้ไขเองไม่ได้':
+    'Your role, faculty and year come from your TU account and cannot be edited here.',
+  'การบันทึกจะเปิดใช้งานในขั้นตอนถัดไป': 'Saving will be available in a later step.',
   'ไฟล์ภาพไม่เกิน 2 MB': 'Images up to 2 MB',
   'รูปต้องไม่เกิน 2 MB': 'The image must be under 2 MB',
   'อัปโหลดรูปไม่สำเร็จ': 'Could not upload the image',

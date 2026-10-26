@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { CalendarDays, GraduationCap, Lock } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
+import { ProfileEditDialog } from '@/components/ProfileEditDialog';
 import { RoleBadge } from '@/components/RoleBadge';
 import { FollowButton } from '@/components/FollowButton';
 import { FeedList } from '@/components/FeedList';
@@ -57,7 +58,12 @@ export default async function ProfilePage({
             />
             <div className="flex items-center gap-2 pb-1">
               {profile.is_me ? (
-                <Link href="/settings" className="btn-outline px-5 py-2 text-sm">{t('แก้ไขโปรไฟล์')}</Link>
+                <ProfileEditDialog
+                  displayName={profile.display_name}
+                  username={profile.username}
+                  avatarUrl={profile.avatar_url}
+                  bio={profile.bio}
+                />
               ) : (
                 <FollowButton targetId={profile.id} initial={profile.is_following} size="md" />
               )}
