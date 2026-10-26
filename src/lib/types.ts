@@ -265,3 +265,36 @@ export interface CloseFriendCandidate extends PersonCard {
 export interface FollowRequest extends PersonCard {
   created_at: string;
 }
+
+export type ReportReason = 'wrong_info' | 'copyright' | 'spam' | 'inappropriate' | 'privacy';
+export type ReportStatus = 'pending' | 'actioned' | 'dismissed';
+export type ReportAction = 'hide' | 'delete' | 'dismiss';
+
+export const REPORT_REASONS: Record<ReportReason, { label: string; short: string }> = {
+  wrong_info:    { label: 'ข้อมูลผิด / ทำให้เข้าใจผิด',     short: 'ข้อมูลผิด' },
+  copyright:     { label: 'ละเมิดลิขสิทธิ์ (ชีท/ข้อสอบ)',   short: 'ละเมิดลิขสิทธิ์' },
+  spam:          { label: 'สแปม / โฆษณา',                 short: 'สแปม' },
+  inappropriate: { label: 'เนื้อหาไม่เหมาะสม / คุกคาม',     short: 'ไม่เหมาะสม' },
+  privacy:       { label: 'เปิดเผยข้อมูลส่วนตัวผู้อื่น',      short: 'ข้อมูลส่วนตัว' },
+};
+
+export const REPORT_REASON_ORDER: ReportReason[] = ['inappropriate', 'spam', 'wrong_info', 'copyright', 'privacy'];
+
+export const REPORT_DETAIL_MAX = 500;
+
+export interface ReportItem {
+  id: string;
+  reason: ReportReason;
+  detail: string | null;
+  status: ReportStatus;
+  action: ReportAction | null;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  post_id: string | null;
+  post_excerpt: string | null;
+
+  post_hidden: boolean;
+  post: Post | null;
+  reporter: PersonCard | null;
+}
