@@ -74,13 +74,33 @@ export const getMe = cache(async (): Promise<Me | null> => {
   };
   if (row.is_suspended) return null;
 
+  let isAdminAllowed = false;
+  if (row.student_id) {
+    const { data: adminEntry, error: adminError } = await db()
+      .from('admin_allowlist')
+      .select('student_id')
+      .eq('student_id', row.student_id)
+      .eq('enabled', true)
+      .maybeSingle();
+
+    if (!adminError && adminEntry) {
+      isAdminAllowed = true;
+    }
+  }
+
+  const effectiveRole: UserRole = isAdminAllowed
+    ? 'admin'
+    : row.role_override === 'admin'
+      ? row.role
+      : row.role_override ?? row.role;
+
   return {
     id: row.id,
     username: row.username,
     display_name: row.display_name,
     avatar_url: row.avatar_url,
     equipped_frame: null,
-    role: row.role_override ?? row.role,
+    role: effectiveRole,
     faculty_id: row.faculty_id,
     faculty_name: row.faculty_name,
     study_year: studyYear(row.entry_year_be),
@@ -206,7 +226,22 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
 
   for (const p of (profilesData ?? []) as Array<Record<string, unknown>>) {
     const id = String(p.id);
-    const role = ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+
+    const { data: adminEntry, error: adminError } = p.student_id
+  ? await db()
+      .from('admin_allowlist')
+      .select('student_id')
+      .eq('student_id', String(p.student_id))
+      .eq('enabled', true)
+      .maybeSingle()
+  : { data: null, error: null };
+const isAdminAllowed = !adminError && Boolean(adminEntry);
+const role: UserRole = isAdminAllowed
+  ? 'admin'
+  : p.role_override === 'admin'
+    ? (p.role as UserRole) ?? 'student'
+    : ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+
     authorMap.set(id, {
       id,
       username: String(p.username ?? 'user'),
@@ -369,7 +404,27 @@ export async function getUserProfileAndPosts(
   const p = userRow as Record<string, unknown>;
   const userId = String(p.id);
   const isMe = Boolean(me && me.id === userId);
-  const role = ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+  
+  let isAdminAllowed = false;
+
+if (p.student_id) {
+  const { data: adminEntry, error: adminError } = await db()
+    .from('admin_allowlist')
+    .select('student_id')
+    .eq('student_id', String(p.student_id))
+    .eq('enabled', true)
+    .maybeSingle();
+
+  if (!adminError && adminEntry) {
+    isAdminAllowed = true;
+  }
+}
+
+const role: UserRole = isAdminAllowed
+  ? 'admin'
+  : p.role_override === 'admin'
+    ? ((p.role as UserRole) ?? 'student')
+    : ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
 
   const { data: postRows } = await db()
     .from('posts')
