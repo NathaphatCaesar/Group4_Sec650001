@@ -420,11 +420,13 @@ function ComposerForm({
   );
 }
 
-export function ComposeButton({ className, label }: { className?: string; label?: string }) {
+export function ComposeButton({
+  className, label, tag,
+}: { className?: string; label?: string; tag?: PostTag }) {
   const t = useT();
 
   return (
-    <button type="button" onClick={() => openComposer()} className={className ?? 'btn-primary w-full'}>
+    <button type="button" onClick={() => openComposer(tag)} className={className ?? 'btn-primary w-full'}>
       <Plus size={17} /> {label ?? t('สร้างโพสต์')}
     </button>
   );

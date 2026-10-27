@@ -4,6 +4,7 @@ import { CalendarDays, GraduationCap, Lock } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { RoleBadge } from '@/components/RoleBadge';
 import { FollowButton } from '@/components/FollowButton';
+import { ComposeButton } from '@/components/Composer';
 import { FeedList } from '@/components/FeedList';
 import { getUserProfileAndPosts, getMe } from '@/lib/data';
 import { compact, dateOnly } from '@/lib/utils';
@@ -93,6 +94,14 @@ export default async function ProfilePage({
               <CalendarDays size={14} /> {t('เข้าร่วม {date}', { date: dateOnly(profile.created_at, locale) })}
             </span>
           </dl>
+
+          {profile.is_me ? (
+            <ComposeButton
+              tag="sheet"
+              label={t('อัปโหลดชีทสรุป')}
+              className="btn-primary mt-4 w-full py-2 text-sm"
+            />
+          ) : null}
 
           <div className="mt-4 grid grid-cols-5 gap-2 rounded-2xl bg-[color:var(--color-canvas)] p-3 text-center">
             <Stat label={t('ดาว')} value={profile.stars} accent />
