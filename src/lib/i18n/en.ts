@@ -579,6 +579,9 @@ export const EN: Record<string, string> = {
   'role คณะ และชั้นปีมาจากบัญชี มธ. โดยอัตโนมัติและแก้ไขเองไม่ได้':
     'Your role, faculty and year come from your TU account and cannot be edited here.',
   'การบันทึกจะเปิดใช้งานในขั้นตอนถัดไป': 'Saving will be available in a later step.',
+  'รองรับเฉพาะไฟล์ JPG, PNG, WEBP หรือ GIF': 'Only JPG, PNG, WEBP or GIF files are supported',
+  'กรุณาใส่ชื่อที่แสดง': 'Please enter a display name',
+  'ชื่อผู้ใช้ต้องยาว 3–20 ตัว ใช้ได้เฉพาะ a-z 0-9 _ และ .': 'Username must be 3–20 characters using only a-z 0-9 _ and .',
   'ไฟล์ภาพไม่เกิน 2 MB': 'Images up to 2 MB',
   'รูปต้องไม่เกิน 2 MB': 'The image must be under 2 MB',
   'อัปโหลดรูปไม่สำเร็จ': 'Could not upload the image',
