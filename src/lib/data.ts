@@ -12,7 +12,12 @@ import type {
   FeedSort,
   Post,
   PostTag,
+  PersonCard,
   ProfileView,
+  ReportAction,
+  ReportItem,
+  ReportReason,
+  ReportStatus,
   Subject,
   UserRole,
 } from '@/lib/types';
@@ -521,4 +526,87 @@ export async function getSuggestedUsers(meId: string, limit: number): Promise<Su
     faculty_name: u.faculty_name,
     study_year: studyYear(u.entry_year_be),
   }));
+}
+interface RawReportRow {
+  id: string;
+  reporter_id: string;
+  post_id: string | null;
+  post_excerpt: string | null;
+  reason: ReportReason;
+  detail: string | null;
+  status: ReportStatus;
+  action: ReportAction | null;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+// U8: คิวรายงานสำหรับแอดมิน 'pending' = รอตรวจ, 'closed' = จัดการแล้ว/ไม่ผิดกฎ
+export async function getReports(view: 'pending' | 'closed', limit = 50): Promise<ReportItem[]> {
+  const me = await getMe();
+  if (!me || me.role !== 'admin') return [];
+
+  let query = db().from('reports').select('*');
+  query = view === 'pending'
+    ? query.eq('status', 'pending').order('created_at', { ascending: true })
+    : query.neq('status', 'pending').order('resolved_at', { ascending: false });
+
+  const { data, error } = await query.limit(limit);
+  if (error || !data) return [];
+  const rows = data as RawReportRow[];
+
+  const postIds = Array.from(new Set(rows.map((r) => r.post_id).filter((id): id is string => Boolean(id))));
+  const reporterIds = Array.from(new Set(rows.map((r) => r.reporter_id)));
+
+  const [{ data: postRows }, { data: reporterRows }] = await Promise.all([
+    postIds.length
+      ? db().from('posts').select('*').in('id', postIds)
+      : Promise.resolve({ data: [] as RawPostRow[] }),
+    db()
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, role, role_override, faculty_name, entry_year_be')
+      .in('id', reporterIds),
+  ]);
+
+  // แอดมินต้องเห็นโพสต์ที่ถูกซ่อนด้วย จึงไม่กรอง is_hidden ตรงนี้
+  const rawPosts = (postRows ?? []) as RawPostRow[];
+  const hiddenIds = new Set(rawPosts.filter((p) => p.is_hidden).map((p) => p.id));
+  const postMap = new Map((await hydratePosts(rawPosts)).map((p) => [p.id, p]));
+
+  const reporterMap = new Map<string, PersonCard>();
+  for (const u of (reporterRows ?? []) as Array<Record<string, unknown>>) {
+    reporterMap.set(String(u.id), {
+      id: String(u.id),
+      username: String(u.username ?? 'user'),
+      display_name: String(u.display_name ?? 'ผู้ใช้'),
+      avatar_url: (u.avatar_url as string | null) ?? null,
+      role: ((u.role_override as UserRole | null) ?? (u.role as UserRole) ?? 'student'),
+      faculty_name: (u.faculty_name as string | null) ?? null,
+      study_year: studyYear((u.entry_year_be as number | null) ?? null),
+    });
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    reason: r.reason,
+    detail: r.detail,
+    status: r.status,
+    action: r.action,
+    resolution_note: r.resolution_note,
+    resolved_at: r.resolved_at,
+    created_at: r.created_at,
+    post_id: r.post_id,
+    post_excerpt: r.post_excerpt,
+    post_hidden: r.post_id ? hiddenIds.has(r.post_id) : false,
+    post: r.post_id ? (postMap.get(r.post_id) ?? null) : null,
+    reporter: reporterMap.get(r.reporter_id) ?? null,
+  }));
+}
+
+export async function getPendingReportCount(): Promise<number> {
+  const { count, error } = await db()
+    .from('reports')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending');
+  return error ? 0 : (count ?? 0);
 }
