@@ -38,6 +38,12 @@ Body: `{ "targetUserId": "<uuid>" }` → `{ "ok": true, "following": boolean }` 
 - `createPost(input)` — สร้างโพสต์; แท็ก `#ชีท` ต้องมีชื่อ + ไฟล์ ≥ 1 แล้วได้ +10 ดาว → `{ ok, id, starsAwarded }`
 - `deletePost(postId)` — ลบได้เฉพาะเจ้าของหรือ admin
 
+## Server Actions (`src/actions/reports.ts`) — U7/U8
+- `reportPost(postId, reason, detail?)` — รายงานโพสต์; `reason` ต้องเป็น `wrong_info` | `copyright` | `spam` | `inappropriate` | `privacy` ไม่งั้นปฏิเสธพร้อมข้อความให้เลือกเหตุผล · โพสต์ที่ถูกลบ/ซ่อนแล้วตอบ `{ ok: false, gone: true, error: 'ไม่พบเนื้อหาที่จะรายงาน' }` · รายงานซ้ำระหว่างรอตรวจถือว่าสำเร็จ · รายงานโพสต์ตัวเองไม่ได้
+- `resolveReport(reportId, action, note?)` — admin เท่านั้น; `hide` ซ่อนโพสต์, `delete` ลบโพสต์ (ทั้งสองแบบเคสเป็น `actioned`), `dismiss` ปิดเคสโดยโพสต์ยังแสดงอยู่ (`dismissed`) · ปิดทุกเคสที่ค้างของโพสต์เดียวกันพร้อมกัน
+
 ## Data (`src/lib/data.ts`)
 - `getFeed({ tag, subject, faculty, group, sort: 'new'|'top', offset, limit })` — ไม่รวมโพสต์ที่ถูกซ่อน, เห็นเฉพาะ public หรือของตัวเอง
 - `getUserProfileAndPosts(username)` — โปรไฟล์ + โพสต์ + ชีท + จำนวนผู้ติดตาม
+- `getReports('pending' | 'closed')` — คิวรายงานสำหรับหน้า `/admin/reports` (admin เท่านั้น, รวมโพสต์ที่ถูกซ่อน)
+- `getPendingReportCount()` — จำนวนรายงานที่รอตรวจ (badge ในเมนูแอดมิน)
