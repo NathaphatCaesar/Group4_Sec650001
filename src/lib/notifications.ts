@@ -87,3 +87,47 @@ export async function createNotification(input: CreateNotificationInput) {
 
   return { notification: data, skipped: false } as const;
 }
+
+/**
+ * Fire-and-forget wrapper: a failed notification must never break the main action.
+ */
+export async function notifySafely(input: CreateNotificationInput) {
+  try {
+    await createNotification(input);
+  } catch (error) {
+    console.error('Notify failed:', error);
+  }
+}
+
+/**
+ * Same notification to many recipients (e.g. announce to all followers).
+ */
+export async function notifyManySafely(
+  recipientIds: string[],
+  input: Omit<CreateNotificationInput, 'recipientId'>,
+) {
+  const rows = [...new Set(recipientIds)]
+    .filter((id) => UUID_PATTERN.test(id) && id !== input.actorId)
+    .map((id) => ({
+      recipient_id: id,
+      actor_id: input.actorId ?? null,
+      type: input.type,
+      post_id: input.postId ?? null,
+      comment_id: input.commentId ?? null,
+      conversation_id: input.conversationId ?? null,
+      payload: input.payload ?? {},
+    }));
+  if (rows.length === 0) return;
+
+  const { error } = await db().from('notifications').insert(rows);
+  if (error) console.error('Notify many failed:', error.message);
+}
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const { count, error } = await db()
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('recipient_id', userId)
+    .is('read_at', null);
+  return error ? 0 : (count ?? 0);
+}

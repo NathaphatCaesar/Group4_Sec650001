@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/supabase';
+import { notifyManySafely } from '@/lib/notifications';
 import { getMe } from '@/lib/data';
 import {
   REPORT_REASONS, REPORT_DETAIL_MAX,
@@ -105,8 +106,8 @@ export async function resolveReport(
   // ต้องปิดเคสก่อนลบโพสต์ เพราะลบแล้ว post_id จะกลายเป็น null
   const closeCases = db().from('reports').update(resolution).eq('status', 'pending');
   const { data: closed, error: closeErr } = rep.post_id
-    ? await closeCases.eq('post_id', rep.post_id).select('id')
-    : await closeCases.eq('id', rep.id).select('id');
+    ? await closeCases.eq('post_id', rep.post_id).select('id, reporter_id')
+    : await closeCases.eq('id', rep.id).select('id, reporter_id');
   if (closeErr) return { ok: false, error: 'บันทึกผลการตรวจไม่สำเร็จ' };
 
   if (action !== 'dismiss' && rep.post_id) {
@@ -125,6 +126,15 @@ export async function resolveReport(
       return { ok: false, error: 'จัดการโพสต์ไม่สำเร็จ ลองใหม่อีกครั้ง' };
     }
   }
+
+  // แจ้งคนที่รายงานทุกคนว่าเคสถูกจัดการแล้ว
+  const reporters = ((closed ?? []) as Array<{ reporter_id: string }>).map((r) => r.reporter_id);
+  await notifyManySafely(reporters, {
+    actorId: me.id,
+    type: 'report_resolved',
+    postId: action === 'delete' ? null : rep.post_id,
+    payload: { action },
+  });
 
   revalidatePath('/');
   revalidatePath('/admin/reports');
