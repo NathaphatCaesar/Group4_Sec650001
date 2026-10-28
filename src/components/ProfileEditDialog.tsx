@@ -1,14 +1,16 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { UserRound, X } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { dateOnly } from '@/lib/utils';
 
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
 const DISPLAY_NAME_MAX = 40;
 const BIO_MAX = 300;
-const USERNAME_PATTERN = /^[a-z0-9_.]{3,20}$/;
+const USERNAME_PATTERN = /^[a-z0-9_.]{3,30}$/;
 const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 export function ProfileEditDialog({
@@ -23,6 +25,8 @@ export function ProfileEditDialog({
   bio: string | null;
 }) {
   const t = useT();
+  const locale = useLocale();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [username, setUsername] = useState(initialUsername);
@@ -78,7 +82,7 @@ export function ProfileEditDialog({
   function validate(): string | null {
     if (!displayName.trim()) return t('กรุณาใส่ชื่อที่แสดง');
     if (!USERNAME_PATTERN.test(username)) {
-      return t('ชื่อผู้ใช้ต้องยาว 3–20 ตัว ใช้ได้เฉพาะ a-z 0-9 _ และ .');
+      return t('ชื่อผู้ใช้ต้องยาว 3–30 ตัว ใช้ได้เฉพาะ a-z 0-9 _ และ .');
     }
     return null;
   }
@@ -93,9 +97,41 @@ export function ProfileEditDialog({
     }
     setError(null);
     setSaving(true);
-    // TODO: เชื่อม API อัปโหลด avatarFile ผ่าน /api/upload แล้วบันทึก displayName, username, bio
-    setNotice(t('การบันทึกจะเปิดใช้งานในขั้นตอนถัดไป'));
-    setSaving(false);
+    setNotice(null);
+
+    const form = new FormData();
+    form.append('display_name', displayName);
+    form.append('username', username);
+    form.append('bio', bio);
+    if (avatarFile) form.append('avatar', avatarFile);
+
+    try {
+      const response = await fetch('/api/profile', { method: 'PATCH', body: form });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (result.username_available_at) {
+          setError(t('เปลี่ยนชื่อผู้ใช้ได้อีกครั้งวันที่ {date}', {
+            date: dateOnly(result.username_available_at, locale),
+          }));
+        } else {
+          setError(result.error ? t(result.error) : t('บันทึกโปรไฟล์ไม่สำเร็จ'));
+        }
+        return;
+      }
+
+      setOpen(false);
+      setAvatarFile(null);
+      setPreviewUrl(null);
+      if (username !== initialUsername) {
+        router.replace(`/u/${username}`);
+      }
+      router.refresh();
+    } catch {
+      setError(t('บันทึกโปรไฟล์ไม่สำเร็จ'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   function close() {
@@ -190,7 +226,7 @@ export function ProfileEditDialog({
                     id="profile-username"
                     value={username}
                     onChange={(event) => { setUsername(event.target.value.toLowerCase()); setNotice(null); setError(null); }}
-                    maxLength={20}
+                    maxLength={30}
                     className="input"
                     autoComplete="off"
                     spellCheck={false}
