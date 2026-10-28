@@ -8,14 +8,17 @@ import { SearchBox } from '@/components/SearchBox';
 import { UserMenu } from '@/components/UserMenu';
 import { ComposerModal, ComposeButton } from '@/components/Composer';
 import { AccentStyle } from '@/components/AccentStyle';
-import { getMe, getSubjects } from '@/lib/data';
+import { getMe, getSubjects, getPendingReportCount } from '@/lib/data';
 import { getT } from '@/lib/i18n/server';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [t, me] = await Promise.all([getT(), getMe()]);
   if (!me) redirect('/login');
 
-  const subjects = await getSubjects();
+  const [subjects, pendingReports] = await Promise.all([
+    getSubjects(),
+    me.role === 'admin' ? getPendingReportCount() : Promise.resolve(0),
+  ]);
 
   const desktopNav: NavItem[] = [
     { href: '/', label: 'หน้าฟีด', icon: 'Home' },
@@ -25,6 +28,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/study', label: 'นัดติวของฉัน', icon: 'CalendarClock' },
     { href: '/leaderboard', label: 'อันดับดาว', icon: 'Trophy' },
     { href: `/u/${me.username}`, label: 'โปรไฟล์', icon: 'User' },
+    ...(me.role === 'admin'
+      ? [{ href: '/admin/reports', label: 'คิวรายงาน', icon: 'Flag', badge: pendingReports } satisfies NavItem]
+      : []),
   ];
 
   const mobileNav: NavItem[] = [
