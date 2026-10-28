@@ -581,7 +581,7 @@ export const EN: Record<string, string> = {
   'การบันทึกจะเปิดใช้งานในขั้นตอนถัดไป': 'Saving will be available in a later step.',
   'รองรับเฉพาะไฟล์ JPG, PNG, WEBP หรือ GIF': 'Only JPG, PNG, WEBP or GIF files are supported',
   'กรุณาใส่ชื่อที่แสดง': 'Please enter a display name',
-  'ชื่อผู้ใช้ต้องยาว 3–20 ตัว ใช้ได้เฉพาะ a-z 0-9 _ และ .': 'Username must be 3–20 characters using only a-z 0-9 _ and .',
+  'ชื่อผู้ใช้ต้องยาว 3–30 ตัว ใช้ได้เฉพาะ a-z 0-9 _ และ .': 'Username must be 3–30 characters using only a-z 0-9 _ and .',
   'ไฟล์ภาพไม่เกิน 2 MB': 'Images up to 2 MB',
   'รูปต้องไม่เกิน 2 MB': 'The image must be under 2 MB',
   'อัปโหลดรูปไม่สำเร็จ': 'Could not upload the image',
@@ -772,4 +772,8 @@ export const EN: Record<string, string> = {
     'This TU account is already linked to a different user — please contact an admin.',
   'ข้อมูลโปรไฟล์ชนกับบัญชีอื่น (รหัสนักศึกษาหรือชื่อผู้ใช้ซ้ำ) — แจ้งแอดมิน':
     'Your profile clashes with another account (duplicate student ID or username) — contact an admin.',
+  'เปลี่ยนชื่อผู้ใช้ได้อีกครั้งวันที่ {date}': 'You can change your username again on {date}',
+  'บันทึกโปรไฟล์ไม่สำเร็จ': 'Could not save your profile',
+  'ชื่อผู้ใช้นี้ถูกใช้แล้ว': 'This username is already taken',
+  'แก้ไขโปรไฟล์ถี่เกินไป กรุณารอสักครู่แล้วลองใหม่': 'Too many profile edits — please wait a moment and try again',
 };
