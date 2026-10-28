@@ -396,6 +396,43 @@ export async function searchPosts(
   }
 }
 
+export async function searchPeople(
+  searchTerm: string,
+  limit = 10,
+): Promise<SuggestedUser[]> {
+  try {
+    const term = searchTerm.trim();
+
+    if (!term) return [];
+
+    const { data, error } = await db()
+      .from('profiles')
+      .select(
+        'id, username, display_name, avatar_url, role, role_override, faculty_name, entry_year_be, is_suspended',
+      )
+      .eq('is_suspended', false)
+      .or(
+        `username.ilike.%${term}%,display_name.ilike.%${term}%`,
+      )
+      .order('display_name', { ascending: true })
+      .limit(Math.max(1, Math.min(limit, 20)));
+
+    if (error || !data) return [];
+
+    return data.map((u) => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name,
+      avatar_url: u.avatar_url,
+      role: u.role_override ?? u.role,
+      faculty_name: u.faculty_name,
+      study_year: studyYear(u.entry_year_be),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getUserProfileAndPosts(
   username: string,
 ): Promise<{ profile: ProfileView; posts: Post[]; sheets: Post[] } | null> {
