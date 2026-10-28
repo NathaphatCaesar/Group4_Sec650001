@@ -573,6 +573,7 @@ export const EN: Record<string, string> = {
   'แนะนำตัว': 'Bio',
   'เรียนอะไร สนใจอะไร ติวให้ใครได้บ้าง...': 'What you study, what you are into, what you can tutor...',
   'เปลี่ยนรูปโปรไฟล์': 'Change photo',
+  'อัปโหลดชีทสรุป': 'Upload a sheet',
   'รูปโปรไฟล์ต้องมีขนาดไม่เกิน 2 MB': 'Profile photo must be 2 MB or smaller',
   'กรุณาเลือกไฟล์รูปภาพ': 'Please choose an image file',
   'คนอื่นเห็นชื่อนี้ · {count}/{max}': 'This is the name others see · {count}/{max}',
