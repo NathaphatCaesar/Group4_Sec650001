@@ -1,4 +1,5 @@
-import { searchPosts, searchPeople } from '@/lib/data';
+import { searchPosts, searchPeople, getFeed } from '@/lib/data';
+import type { PostTag, FeedSort } from '@/lib/types';
 import { FeedList } from '@/components/FeedList';
 import { getT } from '@/lib/i18n/server';
 import Link from 'next/link';
@@ -8,59 +9,96 @@ export const dynamic = 'force-dynamic';
 type SearchPageProps = {
   searchParams: Promise<{
     q?: string | string[];
+    tag?: string | string[];
   }>;
 };
 
 const categories = [
-  { label: 'ทั้งหมด', icon: '▦', color: 'bg-amber-100 text-amber-800', active: true },
-  { label: 'ชีท', icon: '▤', color: 'bg-sky-50 text-sky-700' },
-  { label: 'หาเพื่อนติว', icon: '♧', color: 'bg-emerald-50 text-emerald-700' },
-  { label: 'ถาม-ตอบ', icon: '?', color: 'bg-orange-50 text-orange-700' },
-  { label: 'โพสต์', icon: '♧', color: 'bg-pink-50 text-pink-700' },
-  { label: 'ประกาศ', icon: '⚑', color: 'bg-violet-50 text-violet-700' },
-  { label: 'ทั่วไป', icon: '◯', color: 'bg-neutral-100 text-neutral-700' },
+  { label: 'ทั้งหมด', tag: 'all', icon: '▦', color: 'bg-amber-100 text-amber-800' },
+  { label: 'ชีท', tag: 'sheet', icon: '▤', color: 'bg-sky-50 text-sky-700' },
+  { label: 'หาเพื่อนติว', tag: 'studybuddy', icon: '♧', color: 'bg-emerald-50 text-emerald-700' },
+  { label: 'ถาม-ตอบ', tag: 'qa', icon: '?', color: 'bg-orange-50 text-orange-700' },
+  { label: 'โพล', tag: 'poll', icon: '♧', color: 'bg-pink-50 text-pink-700' },
+  { label: 'ประกาศ', tag: 'announce', icon: '📢', color: 'bg-violet-50 text-violet-700' },
+  { label: 'ทั่วไป', tag: 'general', icon: '◯', color: 'bg-neutral-100 text-neutral-700' },
 ];
 
 export default async function SearchPage({
   searchParams,
 }: SearchPageProps) {
   const params = await searchParams;
+
   const value = params.q;
+  const tagValue = params.tag;
 
   const query = (
     Array.isArray(value) ? value[0] : value ?? ''
   ).trim();
 
-  const [posts, people] = query
-    ? await Promise.all([
-      searchPosts(query),
-      searchPeople(query),
-    ])
-    : [[], []];
+  const selectedTag = (
+    Array.isArray(tagValue) ? tagValue[0] : tagValue ?? ''
+  ).trim();
+
+  const validTags: PostTag[] = [
+    'sheet',
+    'studybuddy',
+    'qa',
+    'poll',
+    'announce',
+    'general',
+  ];
+
+  const tag = validTags.includes(selectedTag as PostTag)
+    ? (selectedTag as PostTag)
+    : null;
+
+  const [posts, people] = await Promise.all([
+    query
+      ? searchPosts(query)
+      : getFeed({
+        tag,
+        subject: null,
+        group: null,
+        faculty: null,
+        scope: 'all',
+        sort: 'new' as FeedSort,
+        limit: 20,
+        offset: 0,
+      }),
+    query ? searchPeople(query) : Promise.resolve([]),
+  ]);
 
   const t = await getT();
 
   return (
     <main className="mx-auto w-full max-w-[720px] space-y-4 px-4 py-6">
       {/* Search category pills */}
-      <nav className="flex flex-wrap items-center gap-2" aria-label="หมวดหมู่การค้นหา">
+      <nav
+        className="flex flex-wrap items-center gap-2"
+        aria-label="หมวดหมู่การค้นหา"
+      >
         {categories.map((category) => (
-          <button
-            key={category.label}
-            type="button"
-            className={`inline-flex items-center gap-2 rounded-full border border-transparent px-3.5 py-2 text-sm font-medium transition hover:border-amber-300 ${category.active
+          <Link
+            key={category.tag}
+            href={{
+              pathname: '/search',
+              query: {
+                ...(query ? { q: query } : {}),
+                ...(category.tag !== 'all' ? { tag: category.tag } : {}),
+              },
+            }}
+            className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium transition ${category.tag === 'all'
               ? 'bg-gradient-to-r from-orange-500 to-amber-400 text-neutral-900'
-              : category.color
+              : `${category.color} hover:opacity-80`
               }`}
           >
             <span aria-hidden="true">{category.icon}</span>
             {t(category.label)}
-          </button>
+          </Link>
         ))}
       </nav>
 
-      {/* Search empty state */}
-      {!query ? (
+      {!query && !selectedTag ? (
         <section className="flex min-h-[202px] flex-col items-center justify-center rounded-[20px] border border-[#eee2d8] bg-white px-6 py-10 text-center shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -121,7 +159,11 @@ export default async function SearchPage({
       ) : (
         <>
           <p className="pt-1 text-sm text-ink-soft">
-            {t('ผลการค้นหาสำหรับ: {q}', { q: query })}
+            {query
+              ? t('ผลการค้นหาสำหรับ: {q}', { q: query })
+              : selectedTag
+                ? t(categories.find((c) => c.tag === selectedTag)?.label ?? 'โพสต์')
+                : t('โพสต์ล่าสุด')}
           </p>
 
           {/* People results */}
@@ -194,6 +236,6 @@ export default async function SearchPage({
           )}
         </>
       )}
-    </main>
+    </main >
   );
 }
