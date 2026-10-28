@@ -46,8 +46,33 @@ export async function GET() {
       );
     }
 
+    // เติมชื่อคนทำ (actor) และหัวข้อโพสต์ เพื่อให้แสดงผลและกดลิงก์ได้
+    const rows = (listResult.data ?? []) as Array<{ actor_id: string | null; post_id: string | null }>;
+    const actorIds = [...new Set(rows.map((r) => r.actor_id).filter((id): id is string => Boolean(id)))];
+    const postIds = [...new Set(rows.map((r) => r.post_id).filter((id): id is string => Boolean(id)))];
+    const [actorsResult, postsResult] = await Promise.all([
+      actorIds.length
+        ? client.from('profiles').select('id, username, display_name, avatar_url, role').in('id', actorIds)
+        : Promise.resolve({ data: [] }),
+      postIds.length
+        ? client.from('posts').select('id, title, author_id').in('id', postIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+    const actors = new Map(
+      ((actorsResult.data ?? []) as Array<{ id: string; username: string; display_name: string; avatar_url: string | null; role: string }>)
+        .map((a) => [a.id, a]),
+    );
+    const posts = new Map(
+      ((postsResult.data ?? []) as Array<{ id: string; title: string | null; author_id: string }>)
+        .map((p) => [p.id, p]),
+    );
+
     return NextResponse.json({
-      notifications: listResult.data ?? [],
+      notifications: rows.map((row) => ({
+        ...row,
+        actor: row.actor_id ? actors.get(row.actor_id) ?? null : null,
+        post_title: row.post_id ? posts.get(row.post_id)?.title ?? null : null,
+      })),
       unreadCount: unreadResult.count ?? 0,
     });
   } catch (error) {

@@ -1,6 +1,7 @@
 import 'server-only';
 import { db } from '@/lib/supabase';
 import { currentUserId } from '@/lib/session';
+import { notifySafely } from '@/lib/notifications';
 
 type FollowResult =
 	| { ok: true; following: boolean }
@@ -41,16 +42,23 @@ async function updateFollow(targetUserId: string, shouldFollow: boolean): Promis
 	}
 
 	const query = db().from('follows');
-	const { error } = shouldFollow
-		? await query.upsert(
-				{ follower_id: userId, following_id: targetUserId },
-				{ onConflict: 'follower_id,following_id', ignoreDuplicates: true },
-			)
-		: await query.delete().eq('follower_id', userId).eq('following_id', targetUserId);
+	const { data: changed, error } = shouldFollow
+		? await query
+				.upsert(
+					{ follower_id: userId, following_id: targetUserId },
+					{ onConflict: 'follower_id,following_id', ignoreDuplicates: true },
+				)
+				.select('follower_id')
+		: await query.delete().eq('follower_id', userId).eq('following_id', targetUserId).select('follower_id');
 
 	if (error) {
 		console.error('[follow] relationship update failed', error);
 		return { ok: false, status: 502, error: 'บันทึกการติดตามไม่สำเร็จ' };
+	}
+
+	// แจ้งเตือนเฉพาะตอนติดตามใหม่จริงๆ (ไม่แจ้งซ้ำถ้าติดตามอยู่แล้ว)
+	if (shouldFollow && changed && changed.length > 0) {
+		await notifySafely({ recipientId: targetUserId, actorId: userId, type: 'follow' });
 	}
 
 	return { ok: true, following: shouldFollow };
