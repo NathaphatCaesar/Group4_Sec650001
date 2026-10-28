@@ -357,6 +357,44 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
     return [];
   }
 }
+export async function searchPosts(
+  searchTerm: string,
+  limit = 20,
+): Promise<Post[]> {
+  try {
+    const term = searchTerm.trim();
+
+    if (!term) return [];
+
+    const me = await getMe();
+
+    // Search post titles and body text.
+    let query = db()
+      .from('posts')
+      .select('*')
+      .eq('is_hidden', false)
+      .or(`title.ilike.%${term}%,body.ilike.%${term}%`)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(Math.max(1, Math.min(limit, 50)));
+
+    const { data, error } = await query;
+
+    if (error || !data) return [];
+
+    // Only show public posts or the current user's own posts.
+    const visibleRows = (data as RawPostRow[]).filter(
+      (row) =>
+        row.visibility === 'public' ||
+        (me && row.author_id === me.id),
+    );
+
+    return await hydratePosts(visibleRows);
+
+  } catch {
+    return [];
+  }
+}
 
 export async function getUserProfileAndPosts(
   username: string,
