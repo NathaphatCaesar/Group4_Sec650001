@@ -346,14 +346,23 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
     const to = from + Math.max(1, params.limit) - 1;
     const { data, error } = await query.range(from, to);
 
-    if (error || !data) return [];
+    if (error) {
+      console.error('getFeed query error:', error);
+      return [];
+    }
+
+    if (!data) {
+      console.error('getFeed returned no data');
+      return [];
+    }
 
     const visibleRows = (data as RawPostRow[]).filter(
       (r) => r.visibility === 'public' || (me && r.author_id === me.id),
     );
 
     return hydratePosts(visibleRows);
-  } catch {
+  } catch (error) {
+    console.error('getFeed unexpected error:', error);
     return [];
   }
 }
@@ -469,7 +478,7 @@ export async function getUserProfileAndPosts(
     db().from('follows').select('id', { count: 'exact', head: true }).eq('following_id', userId),
     db().from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', userId),
   ]);
-  
+
   const followerCount = followersRes.count ?? 0;
   const followingCount = followingRes.count ?? 0;
 
@@ -481,7 +490,7 @@ export async function getUserProfileAndPosts(
       .eq('follower_id', me.id)
       .eq('following_id', userId)
       .maybeSingle();
-    
+
     isFollowing = Boolean(followRow);
   }
 

@@ -767,4 +767,7 @@ export const EN: Record<string, string> = {
 'พิมพ์คำค้นหาเพื่อค้นหาโพสต์': 'Enter a keyword to search posts.',
 'ไม่พบผลลัพธ์': 'No results found',
 'ลองใช้คำค้นหาอื่น': 'Try another keyword.',
+'พิมพ์รหัสวิชา ชื่อชีท ชื่อเพื่อน หรือเลือกแท็กด้านบนเพื่อดูได้ทั้งหมด':
+"Search course codes, sheet titles, or friends' names, or select a category above to browse posts.",
+'รายวิชา': 'Courses',
 };
