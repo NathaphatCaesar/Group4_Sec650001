@@ -196,7 +196,8 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   const postIds = rows.map((r) => r.id);
   const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
 
-  const [subjects, { data: profilesData }, { data: attachData }] = await Promise.all([
+  const userId = await currentUserId();
+  const [subjects, { data: profilesData }, { data: attachData }, { data: bookmarkData }] = await Promise.all([
     getSubjects(),
     db().from('profiles').select('*').in('id', authorIds),
     db()
@@ -204,7 +205,14 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       .select('id, post_id, file_id, kind, file_name, mime_type, size_bytes, sort_order')
       .in('post_id', postIds)
       .order('sort_order', { ascending: true }),
+    userId
+      ? db().from('bookmarks').select('post_id').eq('user_id', userId).in('post_id', postIds)
+      : Promise.resolve({ data: [] }),
   ]);
+
+  const bookmarkedIds = new Set(
+    ((bookmarkData ?? []) as Array<{ post_id: string }>).map((b) => b.post_id),
+  );
 
   const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
   const authorMap = new Map<string, Author>();
@@ -296,7 +304,7 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       is_pinned: Boolean(r.is_pinned),
       created_at: r.created_at,
       liked: false,
-      bookmarked: false,
+      bookmarked: bookmarkedIds.has(r.id),
       poll: null,
       author: authorMap.get(r.author_id) ?? fallbackAuthor,
       attachments: attachmentsByPost.get(r.id) ?? [],
@@ -329,6 +337,18 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       } else {
         return [];
       }
+    }
+
+    if (params.scope === 'bookmarks') {
+      if (!me) return [];
+      const { data: marks, error: marksError } = await db()
+        .from('bookmarks')
+        .select('post_id')
+        .eq('user_id', me.id);
+      if (marksError) return [];
+      const ids = ((marks ?? []) as Array<{ post_id: string }>).map((m) => m.post_id);
+      if (ids.length === 0) return [];
+      query = query.in('id', ids);
     }
 
     if (params.sort === 'top') {
