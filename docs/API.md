@@ -34,6 +34,16 @@ Body: `{ "username": "6xxxxxxxxx", "password": "..." }`
 ## POST /api/follow · DELETE /api/follow
 Body: `{ "targetUserId": "<uuid>" }` → `{ "ok": true, "following": boolean }` · 400 เมื่อไม่ระบุผู้ใช้
 
+## POST /api/bookmarks · DELETE /api/bookmarks
+Body: `{ "postId": "<uuid>" }` → `{ "ok": true, "bookmarked": boolean }`
+| Status | ความหมาย |
+|---|---|
+| 200 | บันทึก (POST) / ยกเลิกบันทึก (DELETE) สำเร็จ; บันทึกซ้ำไม่เกิดแถวซ้ำ |
+| 400 | ไม่ระบุโพสต์ หรือรหัสโพสต์ไม่ถูกต้อง |
+| 401 | ยังไม่ล็อกอิน |
+| 404 | (POST) ไม่พบโพสต์ หรือโพสต์ถูกซ่อน/ไม่ใช่ public |
+| 502 | ฐานข้อมูลมีปัญหา |
+
 ## Server Actions (`src/actions/posts.ts`)
 - `createPost(input)` — สร้างโพสต์; แท็ก `#ชีท` ต้องมีชื่อ + ไฟล์ ≥ 1 แล้วได้ +10 ดาว → `{ ok, id, starsAwarded }`
 - `deletePost(postId)` — ลบได้เฉพาะเจ้าของหรือ admin
@@ -43,7 +53,7 @@ Body: `{ "targetUserId": "<uuid>" }` → `{ "ok": true, "following": boolean }` 
 - `resolveReport(reportId, action, note?)` — admin เท่านั้น; `hide` ซ่อนโพสต์, `delete` ลบโพสต์ (ทั้งสองแบบเคสเป็น `actioned`), `dismiss` ปิดเคสโดยโพสต์ยังแสดงอยู่ (`dismissed`) · ปิดทุกเคสที่ค้างของโพสต์เดียวกันพร้อมกัน
 
 ## Data (`src/lib/data.ts`)
-- `getFeed({ tag, subject, faculty, group, sort: 'new'|'top', offset, limit })` — ไม่รวมโพสต์ที่ถูกซ่อน, เห็นเฉพาะ public หรือของตัวเอง
+- `getFeed({ tag, subject, faculty, group, scope, sort: 'new'|'top', offset, limit })` — ไม่รวมโพสต์ที่ถูกซ่อน, เห็นเฉพาะ public หรือของตัวเอง; `scope: 'bookmarks'` แสดงเฉพาะโพสต์ที่ผู้ใช้บันทึกไว้ (ยังไม่ล็อกอิน → ว่าง) และทุกโพสต์มี `bookmarked` บอกว่าผู้ใช้บันทึกไว้หรือไม่
 - `getUserProfileAndPosts(username)` — โปรไฟล์ + โพสต์ + ชีท + จำนวนผู้ติดตาม
 - `getReports('pending' | 'closed')` — คิวรายงานสำหรับหน้า `/admin/reports` (admin เท่านั้น, รวมโพสต์ที่ถูกซ่อน)
 - `getPendingReportCount()` — จำนวนรายงานที่รอตรวจ (badge ในเมนูแอดมิน)

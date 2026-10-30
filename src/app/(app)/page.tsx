@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { FeedToolbar } from '@/components/FeedToolbar';
 import { FeedList } from '@/components/FeedList';
 import { RightRail } from '@/components/RightRail';
-import { getFeed, getMe, getSubjects, getFaculties } from '@/lib/data';
+import { getFeed, getFollowingIds, getMe, getSubjects, getFaculties } from '@/lib/data';
 import type { FeedScope, FeedSort, PostTag } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +36,12 @@ export default async function FeedPage({
     offset: 0,
   };
 
-  const posts = await getFeed(params);
+  const [posts, followingIds] = await Promise.all([
+    getFeed(params),
+    params.scope === 'following' ? getFollowingIds(me.id) : Promise.resolve(null),
+  ]);
+  // U11: ยังไม่ได้ติดตามใครเลย → แสดง empty state ชวนไปติดตามคนอื่น
+  const followsNobody = followingIds !== null && followingIds.length === 0;
 
   return (
     <div className="flex gap-6">
@@ -51,10 +56,15 @@ export default async function FeedPage({
           isAdmin={me.role === 'admin'}
           emptyTitle={
             params.scope === 'bookmarks' ? 'ยังไม่มีโพสต์ที่บันทึกไว้'
+              : followsNobody ? 'คุณยังไม่ได้ติดตามใคร'
               : params.scope === 'following' ? 'คนที่คุณติดตามยังไม่ได้โพสต์'
               : 'ยังไม่มีโพสต์ตรงนี้'
           }
-          emptyHint="เป็นคนแรกที่โพสต์เลย"
+          emptyHint={
+            followsNobody ? 'กดติดตามเพื่อนจากหน้าโปรไฟล์ แล้วโพสต์ของเขาจะขึ้นที่แท็บนี้'
+              : params.scope === 'following' ? 'เมื่อคนที่คุณติดตามโพสต์ จะขึ้นที่แท็บนี้'
+              : 'เป็นคนแรกที่โพสต์เลย'
+          }
         />
       </div>
 
