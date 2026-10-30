@@ -312,6 +312,16 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   });
 }
 
+// U11: id ของผู้ใช้ทั้งหมดที่ userId กำลังติดตามอยู่ (ใช้กับแท็บ "ที่ติดตาม")
+export async function getFollowingIds(userId: string): Promise<string[]> {
+  const { data, error } = await db()
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', userId);
+  if (error || !data) return [];
+  return (data as { following_id: string }[]).map((r) => r.following_id);
+}
+
 export async function getFeed(params: FeedParams): Promise<Post[]> {
   try {
     const me = await getMe();
@@ -319,6 +329,14 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       .from('posts')
       .select('*')
       .eq('is_hidden', false);
+
+    // U11: แท็บ "ที่ติดตาม" แสดงเฉพาะโพสต์ของคนที่เราติดตามอยู่
+    if (params.scope === 'following') {
+      if (!me) return [];
+      const followingIds = await getFollowingIds(me.id);
+      if (followingIds.length === 0) return [];
+      query = query.in('author_id', followingIds);
+    }
 
     if (params.tag) {
       query = query.eq('tag', params.tag);
