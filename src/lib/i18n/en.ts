@@ -318,6 +318,9 @@ export const EN: Record<string, string> = {
   'ยังไม่มีโพสต์': 'No posts yet',
   'ยังไม่มีโพสต์ที่บันทึกไว้': 'You have not saved any posts yet',
   'คนที่คุณติดตามยังไม่ได้โพสต์': 'Nobody you follow has posted yet',
+  'คุณยังไม่ได้ติดตามใคร': "You're not following anyone yet",
+  'กดติดตามเพื่อนจากหน้าโปรไฟล์ แล้วโพสต์ของเขาจะขึ้นที่แท็บนี้': 'Follow people from their profile and their posts will show up here',
+  'เมื่อคนที่คุณติดตามโพสต์ จะขึ้นที่แท็บนี้': 'Posts from people you follow will show up here',
   'ลองกดติดตามเพื่อน ๆ จากแถบขวา แล้วฟีดนี้จะมีของ':
     'Follow a few people from the right-hand panel and this feed will fill up.',
   'เริ่มจากแชร์ชีทของคุณเองก็ได้ — โพสต์ #ชีท พร้อมไฟล์ได้ 10 ดาวเลย':
