@@ -35,6 +35,9 @@ export function PostCard({
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reporting, setReporting] = useState(false);
+  const [liked, setLiked] = useState(post.liked);
+  const [likeCount, setLikeCount] = useState(post.like_count);
+  const [likeLoading, setLikeLoading] = useState(false);
 
   const isMine = meId === post.author.id;
   const canDelete = isMine || isAdmin;
@@ -51,6 +54,40 @@ export function PostCard({
   function closeMenu() {
     setMenuOpen(false);
     setConfirming(false);
+  }
+
+  async function onToggleLike() {
+    if (!meId || isMine || likeLoading) return;
+
+    const previousLiked = liked;
+    const previousCount = likeCount;
+    const nextLiked = !previousLiked;
+
+    setLiked(nextLiked);
+    setLikeCount(previousCount + (nextLiked ? 1 : -1));
+    setLikeLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/posts/${post.id}/like`, {
+        method: nextLiked ? 'POST' : 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'ไม่สามารถเปลี่ยนสถานะไลก์ได้');
+      }
+
+      setLiked(data.liked);
+      setLikeCount(data.like_count);
+    } catch (err) {
+      setLiked(previousLiked);
+      setLikeCount(previousCount);
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setLikeLoading(false);
+    }
   }
 
   function onDelete() {
@@ -271,9 +308,28 @@ export function PostCard({
       </div>
 
       <div className="flex items-center gap-1 px-3 pb-2 pt-1">
-        <button type="button" disabled title={notReady} className="btn-ghost gap-2 px-3 opacity-60">
-          <Heart size={18} />
-          <span className="text-sm tabular-nums">{compact(post.like_count)}</span>
+        <button
+          type="button"
+          onClick={onToggleLike}
+          disabled={!meId || isMine || likeLoading}
+          aria-pressed={liked}
+          title={
+            !meId
+              ? 'กรุณาเข้าสู่ระบบก่อน'
+              : isMine
+                ? 'ไม่สามารถกดไลก์โพสต์ของตัวเองได้'
+                : liked
+                  ? 'ยกเลิกไลก์'
+                  : 'ถูกใจ'
+          }
+          className={clsx(
+            'btn-ghost gap-2 px-3',
+            liked && 'text-rose-600',
+            (!meId || isMine || likeLoading) && 'opacity-60',
+          )}
+        >
+          <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
+          <span className="text-sm tabular-nums">{compact(likeCount)}</span>
         </button>
         <button
           type="button"
