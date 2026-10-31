@@ -190,11 +190,24 @@ interface RawAttachmentRow {
   sort_order: number;
 }
 
-async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
+async function hydratePosts(rows: RawPostRow[],viewerId?: string | null,): Promise<Post[]> {
   if (!rows.length) return [];
 
   const postIds = rows.map((r) => r.id);
   const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
+    let likedPostIds = new Set<string>();
+
+  if (viewerId) {
+    const { data: likedRows } = await db()
+      .from('post_likes')
+      .select('post_id')
+      .eq('user_id', viewerId)
+      .in('post_id', postIds);
+
+    likedPostIds = new Set(
+      (likedRows ?? []).map((row) => row.post_id as string),
+    );
+  }
 
   const [subjects, { data: profilesData }, { data: attachData }] = await Promise.all([
     getSubjects(),
@@ -295,7 +308,7 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       share_count: Number(r.share_count ?? 0),
       is_pinned: Boolean(r.is_pinned),
       created_at: r.created_at,
-      liked: false,
+      liked: likedPostIds.has(r.id),
       bookmarked: false,
       poll: null,
       author: authorMap.get(r.author_id) ?? fallbackAuthor,
@@ -352,7 +365,7 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       (r) => r.visibility === 'public' || (me && r.author_id === me.id),
     );
 
-    return hydratePosts(visibleRows);
+    return hydratePosts(visibleRows, me?.id);
   } catch {
     return [];
   }
@@ -387,7 +400,7 @@ export async function getUserProfileAndPosts(
     (r) => r.visibility === 'public' || isMe,
   );
 
-  const hydrated = await hydratePosts(filteredRows);
+  const hydrated = await hydratePosts(filteredRows, me?.id);
   const sheets = hydrated.filter((post) => post.tag === 'sheet' && post.attachments.length > 0);
 
   const [followersRes, followingRes] = await Promise.all([
@@ -516,7 +529,7 @@ export async function getReports(view: 'pending' | 'closed', limit = 50): Promis
   // แอดมินต้องเห็นโพสต์ที่ถูกซ่อนด้วย จึงไม่กรอง is_hidden ตรงนี้
   const rawPosts = (postRows ?? []) as RawPostRow[];
   const hiddenIds = new Set(rawPosts.filter((p) => p.is_hidden).map((p) => p.id));
-  const postMap = new Map((await hydratePosts(rawPosts)).map((p) => [p.id, p]));
+  const postMap = new Map((await hydratePosts(rawPosts, me?.id)).map((p) => [p.id, p]));
 
   const reporterMap = new Map<string, PersonCard>();
   for (const u of (reporterRows ?? []) as Array<Record<string, unknown>>) {
