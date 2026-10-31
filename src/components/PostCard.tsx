@@ -275,9 +275,15 @@ export function PostCard({
           <Heart size={18} />
           <span className="text-sm tabular-nums">{compact(post.like_count)}</span>
         </button>
-        <button type="button" disabled title={notReady} className="btn-ghost gap-2 px-3 opacity-60">
+        <button
+          type="button"
+          onClick={() => router.push(`/posts/${post.id}`)}
+          className="btn-ghost gap-2 px-3"
+        >
           <MessageCircle size={18} />
-          <span className="text-sm tabular-nums">{compact(post.comment_count)}</span>
+          <span className="text-sm tabular-nums">
+            {compact(post.comment_count)}
+          </span>
         </button>
         <button type="button" disabled title={notReady} className="btn-ghost gap-2 px-3 opacity-60">
           <Share2 size={18} />
