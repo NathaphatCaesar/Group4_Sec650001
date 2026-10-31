@@ -30,7 +30,7 @@ export interface CreateNotificationInput {
   actorId?: string | null;
   type: NotificationType;
   postId?: string | null;
-  commentId?: string | null;
+  commentId?: number | null;
   conversationId?: string | null;
   payload?: Record<string, unknown>;
 }
@@ -51,9 +51,6 @@ export async function createNotification(input: CreateNotificationInput) {
   }
   if (input.postId && !UUID_PATTERN.test(input.postId)) {
     throw new Error('postId must be a valid UUID');
-  }
-  if (input.commentId && !UUID_PATTERN.test(input.commentId)) {
-    throw new Error('commentId must be a valid UUID');
   }
   if (input.conversationId && !UUID_PATTERN.test(input.conversationId)) {
     throw new Error('conversationId must be a valid UUID');
