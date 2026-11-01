@@ -29,7 +29,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/study', label: 'นัดติวของฉัน', icon: 'CalendarClock' },
     { href: `/u/${me.username}`, label: 'โปรไฟล์', icon: 'User' },
     ...(me.role === 'admin'
-      ? [{ href: '/admin/reports', label: 'คิวรายงาน', icon: 'Flag', badge: pendingReports } satisfies NavItem]
+      ? [
+          { href: '/admin', label: 'แดชบอร์ด', icon: 'LayoutDashboard' } satisfies NavItem,
+          { href: '/admin/reports', label: 'คิวรายงาน', icon: 'Flag', badge: pendingReports } satisfies NavItem,
+        ]
       : []),
   ];
 

@@ -28,7 +28,7 @@ export function SideNav({ items }: { items: NavItem[] }) {
       {items.map((item) => {
         const Icon = ICONS[item.icon];
         const href = item.href ?? '/';
-        const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+        const active = href === '/' || href === '/admin' ? pathname === href : pathname.startsWith(href);
         return (
           <Link
             key={href}
@@ -82,7 +82,7 @@ export function MobileNav({ items }: { items: NavItem[] }) {
           }
 
           const href = item.href ?? '/';
-          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+          const active = href === '/' || href === '/admin' ? pathname === href : pathname.startsWith(href);
 
           return (
             <Link
