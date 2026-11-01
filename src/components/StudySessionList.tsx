@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import clsx from 'clsx';
-import { CalendarClock, Check, MapPin, Users, X } from 'lucide-react';
+import { CalendarClock, Check, MapPin, MessageCircle, Users, X } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { Empty } from '@/components/Empty';
 import type { MyStudySession } from '@/lib/data';
@@ -68,6 +68,12 @@ function SessionCard({ session }: { session: MyStudySession }) {
           <span>{t('โดย {name}', { name: session.author.display_name })}</span>
         ) : null}
       </div>
+
+      {session.is_owner || session.my_status === 'approved' ? (
+        <Link href={`/study/${session.id}`} className="btn-soft mt-3 inline-flex px-3 py-1.5 text-xs">
+          <MessageCircle size={14} /> {t('แชทกลุ่ม')}
+        </Link>
+      ) : null}
 
       {session.is_owner ? <MemberList postId={session.id} members={session.members} /> : null}
     </article>
