@@ -348,3 +348,13 @@ html {
   background: #e30613; color: #fff; font-size: 9px; font-weight: 800; line-height: 1;
   padding: 2px 5px; border-radius: 9999px; border: 1.5px solid var(--color-surface);
 }
+
+/* Logo: สลับไฟล์ตามธีม (ระบบมืด หรือเลือกธีมมืดเอง) */
+.logo-light { display: block; }
+.logo-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .logo-light { display: none; }
+  :root:not([data-theme='light']) .logo-dark { display: block; }
+}
+:root[data-theme='dark'] .logo-light { display: none; }
+:root[data-theme='dark'] .logo-dark { display: block; }
