@@ -50,6 +50,35 @@ export interface FeedParams {
   offset: number;
 }
 
+// Admin access comes only from the admin_allowlist table (database/admin_allowlist.sql);
+// role_override = 'admin' is ignored so it can't be used to grant admin.
+async function allowlistedAdmins(studentIds: Array<string | null | undefined>): Promise<Set<string>> {
+  const ids = Array.from(new Set(studentIds.filter((id): id is string => Boolean(id))));
+  if (!ids.length) return new Set();
+  const { data, error } = await db()
+    .from('admin_allowlist')
+    .select('student_id')
+    .in('student_id', ids)
+    .eq('enabled', true);
+  if (error) {
+    console.error('[admin] allowlist lookup failed', error);
+    return new Set();
+  }
+  return new Set((data ?? []).map((r: { student_id: string }) => r.student_id));
+}
+
+function resolveRole(
+  role: UserRole | null,
+  roleOverride: UserRole | null,
+  studentId: string | null | undefined,
+  allowlisted: Set<string>,
+): UserRole {
+  if (studentId && allowlisted.has(studentId)) return 'admin';
+  const base = role ?? 'student';
+  if (roleOverride === 'admin') return base;
+  return roleOverride ?? base;
+}
+
 export const getMe = cache(async (): Promise<Me | null> => {
   const userId = await currentUserId();
   if (!userId) return null;
@@ -79,13 +108,16 @@ export const getMe = cache(async (): Promise<Me | null> => {
   };
   if (row.is_suspended) return null;
 
+  const allowlisted = await allowlistedAdmins(row.student_id ? [row.student_id] : []);
+  const effectiveRole = resolveRole(row.role, row.role_override, row.student_id, allowlisted);
+
   return {
     id: row.id,
     username: row.username,
     display_name: row.display_name,
     avatar_url: row.avatar_url,
     equipped_frame: null,
-    role: row.role_override ?? row.role,
+    role: effectiveRole,
     faculty_id: row.faculty_id,
     faculty_name: row.faculty_name,
     study_year: studyYear(row.entry_year_be),
@@ -220,9 +252,19 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
   const authorMap = new Map<string, Author>();
 
-  for (const p of (profilesData ?? []) as Array<Record<string, unknown>>) {
+  const profiles = (profilesData ?? []) as Array<Record<string, unknown>>;
+  const allowlisted = await allowlistedAdmins(
+    profiles.map((p) => (p.student_id ? String(p.student_id) : null)),
+  );
+
+  for (const p of profiles) {
     const id = String(p.id);
-    const role = ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+    const role = resolveRole(
+      p.role as UserRole | null,
+      p.role_override as UserRole | null,
+      p.student_id ? String(p.student_id) : null,
+      allowlisted,
+    );
     authorMap.set(id, {
       id,
       username: String(p.username ?? 'user'),
@@ -502,7 +544,14 @@ export async function getUserProfileAndPosts(
   const p = userRow as Record<string, unknown>;
   const userId = String(p.id);
   const isMe = Boolean(me && me.id === userId);
-  const role = ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+  const studentId = p.student_id ? String(p.student_id) : null;
+  const allowlisted = await allowlistedAdmins(studentId ? [studentId] : []);
+  const role = resolveRole(
+    p.role as UserRole | null,
+    p.role_override as UserRole | null,
+    studentId,
+    allowlisted,
+  );
 
   const { data: postRows } = await db()
     .from('posts')
