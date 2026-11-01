@@ -17,13 +17,15 @@
     "lucide-react": "0.544.0",
     "next": "15.5.27",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.13",
     "@types/node": "22.18.1",
     "@types/react": "19.1.13",
     "@types/react-dom": "19.1.9",
+    "@types/web-push": "3.6.4",
     "tailwindcss": "4.1.13",
     "typescript": "5.9.2"
   }

@@ -359,8 +359,8 @@ function ComposerForm({
                   <span className="font-medium">{t('ต้องให้ฉันอนุมัติก่อนเข้าร่วม')}</span>
                   <span className="mt-0.5 block text-ink-soft">
                     {t(requiresApproval
-                      ? 'คนกดขอแล้วต้องรอคุณกดรับ ถึงจะเข้ากลุ่มแชทได้'
-                      : 'ตอนนี้ใครกดก็เข้ากลุ่มแชทได้เลย')}
+                      ? 'คนกดขอแล้วต้องรอคุณกดรับ ถึงจะเข้าร่วมนัดติวได้'
+                      : 'ตอนนี้ใครกดก็เข้าร่วมนัดติวได้เลย')}
                   </span>
                 </span>
               </label>
@@ -420,11 +420,13 @@ function ComposerForm({
   );
 }
 
-export function ComposeButton({ className, label }: { className?: string; label?: string }) {
+export function ComposeButton({
+  className, label, tag,
+}: { className?: string; label?: string; tag?: PostTag }) {
   const t = useT();
 
   return (
-    <button type="button" onClick={() => openComposer()} className={className ?? 'btn-primary w-full'}>
+    <button type="button" onClick={() => openComposer(tag)} className={className ?? 'btn-primary w-full'}>
       <Plus size={17} /> {label ?? t('สร้างโพสต์')}
     </button>
   );
