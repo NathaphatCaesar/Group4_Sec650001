@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { Bell, MessageCircle } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { SideNav, MobileNav, type NavItem } from '@/components/NavLinks';
 import { SearchBox } from '@/components/SearchBox';
@@ -26,9 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/', label: 'หน้าฟีด', icon: 'Home' },
     { href: '/search', label: 'ค้นหา', icon: 'Search' },
     { href: '/notifications', label: 'การแจ้งเตือน', icon: 'Bell', badge: unreadNotifications },
-    { href: '/chat', label: 'แชท', icon: 'MessageCircle' },
     { href: '/study', label: 'นัดติวของฉัน', icon: 'CalendarClock' },
-    { href: '/leaderboard', label: 'อันดับดาว', icon: 'Trophy' },
     { href: `/u/${me.username}`, label: 'โปรไฟล์', icon: 'User' },
     ...(me.role === 'admin'
       ? [{ href: '/admin/reports', label: 'คิวรายงาน', icon: 'Flag', badge: pendingReports } satisfies NavItem]
@@ -39,7 +37,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/', label: 'หน้าฟีด', icon: 'Home' },
     { href: '/study', label: 'นัดติว', icon: 'CalendarClock' },
     { action: 'compose', label: 'โพสต์', icon: 'Plus' },
-    { href: '/leaderboard', label: 'อันดับดาว', icon: 'Trophy' },
     { href: `/u/${me.username}`, label: 'โปรไฟล์', icon: 'User' },
   ];
 
@@ -67,9 +64,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   {unreadNotifications > 9 ? '9+' : unreadNotifications}
                 </span>
               ) : null}
-            </Link>
-            <Link href="/chat" aria-label={t('แชท')} className="relative rounded-full p-2.5 text-ink-soft hover:bg-brand-50">
-              <MessageCircle size={20} />
             </Link>
             <UserMenu me={me} />
           </div>
