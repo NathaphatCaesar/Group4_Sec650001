@@ -271,8 +271,17 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
 
   const postIds = rows.map((r) => r.id);
   const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
-
   const userId = await currentUserId();
+  let likedPostIds = new Set<string>();
+  if (userId) {
+    const { data: likedRows } = await db()
+      .from('post_likes')
+      .select('post_id')
+      .eq('user_id', userId)
+      .in('post_id', postIds);
+    likedPostIds = new Set((likedRows ?? []).map((row) => row.post_id as string));
+  }
+
   const [subjects, { data: profilesData }, { data: attachData }, bookmarkResult] = await Promise.all([
     getSubjects(),
     db().from('profiles').select('*').in('id', authorIds),
@@ -391,7 +400,7 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       share_count: Number(r.share_count ?? 0),
       is_pinned: Boolean(r.is_pinned),
       created_at: r.created_at,
-      liked: false,
+      liked: likedPostIds.has(r.id),
       bookmarked: bookmarkedIds.has(r.id),
       poll: null,
       author: authorMap.get(r.author_id) ?? fallbackAuthor,
