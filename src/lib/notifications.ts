@@ -152,6 +152,9 @@ async function pushNotification(
     if (actor) url = `/u/${actor.username}`;
   } else if (input.type === 'announce') {
     body = title ? `${name} โพสต์ประกาศใหม่: ${title}` : `${name} โพสต์ประกาศใหม่`;
+  } else if (input.type === 'message' && input.postId) {
+    body = title ? `${name} ส่งข้อความในกลุ่ม ${title}` : `${name} ส่งข้อความในกลุ่มนัดติว`;
+    url = `/study/${input.postId}`;
   } else if (input.type === 'report_resolved') {
     body = input.payload?.action === 'dismiss'
       ? 'รายงานของคุณได้รับการตรวจแล้ว ไม่พบการทำผิดกฎ'

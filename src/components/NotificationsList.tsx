@@ -185,6 +185,7 @@ function notificationHref(item: NotificationRow): string | null {
   if (item.actor && (item.type === 'follow' || item.type === 'announce')) {
     return `/u/${item.actor.username}`;
   }
+  if (item.type === 'message' && item.post_id) return `/study/${item.post_id}`;
   return null;
 }
 
