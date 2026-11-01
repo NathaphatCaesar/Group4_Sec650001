@@ -10,20 +10,22 @@ import { ComposerModal, ComposeButton } from '@/components/Composer';
 import { AccentStyle } from '@/components/AccentStyle';
 import { getMe, getSubjects, getPendingReportCount } from '@/lib/data';
 import { getT } from '@/lib/i18n/server';
+import { getUnreadNotificationCount } from '@/lib/notifications';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [t, me] = await Promise.all([getT(), getMe()]);
   if (!me) redirect('/login');
 
-  const [subjects, pendingReports] = await Promise.all([
+  const [subjects, pendingReports, unreadNotifications] = await Promise.all([
     getSubjects(),
     me.role === 'admin' ? getPendingReportCount() : Promise.resolve(0),
+    getUnreadNotificationCount(me.id),
   ]);
 
   const desktopNav: NavItem[] = [
     { href: '/', label: 'หน้าฟีด', icon: 'Home' },
     { href: '/search', label: 'ค้นหา', icon: 'Search' },
-    { href: '/notifications', label: 'การแจ้งเตือน', icon: 'Bell' },
+    { href: '/notifications', label: 'การแจ้งเตือน', icon: 'Bell', badge: unreadNotifications },
     { href: '/chat', label: 'แชท', icon: 'MessageCircle' },
     { href: '/study', label: 'นัดติวของฉัน', icon: 'CalendarClock' },
     { href: '/leaderboard', label: 'อันดับดาว', icon: 'Trophy' },
@@ -60,6 +62,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="flex shrink-0 items-center gap-1">
             <Link href="/notifications" aria-label={t('การแจ้งเตือน')} className="relative rounded-full p-2.5 text-ink-soft hover:bg-brand-50">
               <Bell size={20} />
+              {unreadNotifications ? (
+                <span className="absolute right-1 top-1 grid min-w-[18px] place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-[18px] text-white">
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
+              ) : null}
             </Link>
             <Link href="/chat" aria-label={t('แชท')} className="relative rounded-full p-2.5 text-ink-soft hover:bg-brand-50">
               <MessageCircle size={20} />

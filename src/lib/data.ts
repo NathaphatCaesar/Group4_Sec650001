@@ -216,7 +216,8 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   const postIds = rows.map((r) => r.id);
   const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
 
-  const [subjects, { data: profilesData }, { data: attachData }] = await Promise.all([
+  const userId = await currentUserId();
+  const [subjects, { data: profilesData }, { data: attachData }, bookmarkResult] = await Promise.all([
     getSubjects(),
     db().from('profiles').select('*').in('id', authorIds),
     db()
@@ -224,7 +225,17 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       .select('id, post_id, file_id, kind, file_name, mime_type, size_bytes, sort_order')
       .in('post_id', postIds)
       .order('sort_order', { ascending: true }),
+    userId
+      ? db().from('bookmarks').select('post_id').eq('user_id', userId).in('post_id', postIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
+
+  if (bookmarkResult.error) {
+    console.error('[feed] bookmark lookup failed', bookmarkResult.error);
+  }
+  const bookmarkedIds = new Set(
+    ((bookmarkResult.data ?? []) as Array<{ post_id: string }>).map((b) => b.post_id),
+  );
 
   const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
   const authorMap = new Map<string, Author>();
@@ -331,12 +342,22 @@ const role: UserRole = isAdminAllowed
       is_pinned: Boolean(r.is_pinned),
       created_at: r.created_at,
       liked: false,
-      bookmarked: false,
+      bookmarked: bookmarkedIds.has(r.id),
       poll: null,
       author: authorMap.get(r.author_id) ?? fallbackAuthor,
       attachments: attachmentsByPost.get(r.id) ?? [],
     };
   });
+}
+
+// U11: id ของผู้ใช้ทั้งหมดที่ userId กำลังติดตามอยู่ (ใช้กับแท็บ "ที่ติดตาม")
+export async function getFollowingIds(userId: string): Promise<string[]> {
+  const { data, error } = await db()
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', userId);
+  if (error || !data) return [];
+  return (data as { following_id: string }[]).map((r) => r.following_id);
 }
 
 export async function getFeed(params: FeedParams): Promise<Post[]> {
@@ -346,6 +367,14 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       .from('posts')
       .select('*')
       .eq('is_hidden', false);
+
+    // U11: แท็บ "ที่ติดตาม" แสดงเฉพาะโพสต์ของคนที่เราติดตามอยู่
+    if (params.scope === 'following') {
+      if (!me) return [];
+      const followingIds = await getFollowingIds(me.id);
+      if (followingIds.length === 0) return [];
+      query = query.in('author_id', followingIds);
+    }
 
     if (params.tag) {
       query = query.eq('tag', params.tag);
@@ -366,6 +395,21 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       }
     }
 
+    if (params.scope === 'bookmarks') {
+      if (!me) return [];
+      const { data: marks, error: marksError } = await db()
+        .from('bookmarks')
+        .select('post_id')
+        .eq('user_id', me.id);
+      if (marksError) {
+        console.error('[feed] saved posts lookup failed', marksError);
+        return [];
+      }
+      const ids = ((marks ?? []) as Array<{ post_id: string }>).map((m) => m.post_id);
+      if (ids.length === 0) return [];
+      query = query.in('id', ids);
+    }
+
     if (params.sort === 'top') {
       query = query
         .order('is_pinned', { ascending: false })
@@ -381,13 +425,97 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
     const to = from + Math.max(1, params.limit) - 1;
     const { data, error } = await query.range(from, to);
 
-    if (error || !data) return [];
+    if (error) {
+      console.error('getFeed query error:', error);
+      return [];
+    }
+
+    if (!data) {
+      console.error('getFeed returned no data');
+      return [];
+    }
 
     const visibleRows = (data as RawPostRow[]).filter(
       (r) => r.visibility === 'public' || (me && r.author_id === me.id),
     );
 
     return hydratePosts(visibleRows);
+  } catch (error) {
+    console.error('getFeed unexpected error:', error);
+    return [];
+  }
+}
+export async function searchPosts(
+  searchTerm: string,
+  limit = 20,
+): Promise<Post[]> {
+  try {
+    const term = searchTerm.trim();
+
+    if (!term) return [];
+
+    const me = await getMe();
+
+    // Search post titles and body text.
+    let query = db()
+      .from('posts')
+      .select('*')
+      .eq('is_hidden', false)
+      .or(`title.ilike.%${term}%,body.ilike.%${term}%`)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(Math.max(1, Math.min(limit, 50)));
+
+    const { data, error } = await query;
+
+    if (error || !data) return [];
+
+    // Only show public posts or the current user's own posts.
+    const visibleRows = (data as RawPostRow[]).filter(
+      (row) =>
+        row.visibility === 'public' ||
+        (me && row.author_id === me.id),
+    );
+
+    return await hydratePosts(visibleRows);
+
+  } catch {
+    return [];
+  }
+}
+
+export async function searchPeople(
+  searchTerm: string,
+  limit = 10,
+): Promise<SuggestedUser[]> {
+  try {
+    const term = searchTerm.trim();
+
+    if (!term) return [];
+
+    const { data, error } = await db()
+      .from('profiles')
+      .select(
+        'id, username, display_name, avatar_url, role, role_override, faculty_name, entry_year_be, is_suspended',
+      )
+      .eq('is_suspended', false)
+      .or(
+        `username.ilike.%${term}%,display_name.ilike.%${term}%`,
+      )
+      .order('display_name', { ascending: true })
+      .limit(Math.max(1, Math.min(limit, 20)));
+
+    if (error || !data) return [];
+
+    return data.map((u) => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name,
+      avatar_url: u.avatar_url,
+      role: u.role_override ?? u.role,
+      faculty_name: u.faculty_name,
+      study_year: studyYear(u.entry_year_be),
+    }));
   } catch {
     return [];
   }
@@ -449,7 +577,7 @@ const role: UserRole = isAdminAllowed
     db().from('follows').select('id', { count: 'exact', head: true }).eq('following_id', userId),
     db().from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', userId),
   ]);
-  
+
   const followerCount = followersRes.count ?? 0;
   const followingCount = followingRes.count ?? 0;
 
@@ -461,7 +589,7 @@ const role: UserRole = isAdminAllowed
       .eq('follower_id', me.id)
       .eq('following_id', userId)
       .maybeSingle();
-    
+
     isFollowing = Boolean(followRow);
   }
 

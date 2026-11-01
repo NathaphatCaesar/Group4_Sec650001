@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import clsx from 'clsx';
 import {
-  Heart, MessageCircle, Share2, MoreHorizontal, Download,
-  FileText, CalendarClock, MapPin, Users, Trash2, Pin, Megaphone, Flag,
+  Heart, MessageCircle, MoreHorizontal, Download,
+  FileText, CalendarClock, MapPin, Users, Trash2, Pin, Megaphone, Flag, Bookmark
 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { RoleBadge } from '@/components/RoleBadge';
@@ -35,6 +35,12 @@ export function PostCard({
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reporting, setReporting] = useState(false);
+  const [bookmarked, setBookmarked] = useState(post.bookmarked);
+  const [bookmarkPending, setBookmarkPending] = useState(false);
+
+  useEffect(() => {
+    setBookmarked(post.bookmarked);
+  }, [post.bookmarked]);
 
   const isMine = meId === post.author.id;
   const canDelete = isMine || isAdmin;
@@ -61,6 +67,34 @@ export function PostCard({
       if (!res.ok) { setGone(false); setError(t(res.error)); }
       else router.refresh();
     });
+  }
+
+  async function toggleBookmark() {
+    if (bookmarkPending) return;
+
+    const previous = bookmarked;
+    setBookmarkPending(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/bookmarks', {
+        method: previous ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id }),
+      });
+      const result = (await response.json()) as { bookmarked?: boolean; error?: string; code?: string };
+      if (!response.ok) {
+        const message = t(result.error ?? 'บันทึกโพสต์ไม่สำเร็จ');
+        setError(response.status === 502 && result.code ? `${message} (${result.code})` : message);
+        return;
+      }
+
+      setBookmarked(Boolean(result.bookmarked));
+      router.refresh();
+    } catch {
+      setError(t('บันทึกโพสต์ไม่สำเร็จ'));
+    } finally {
+      setBookmarkPending(false);
+    }
   }
 
   return (
@@ -279,9 +313,20 @@ export function PostCard({
           <MessageCircle size={18} />
           <span className="text-sm tabular-nums">{compact(post.comment_count)}</span>
         </button>
-        <button type="button" disabled title={notReady} className="btn-ghost gap-2 px-3 opacity-60">
-          <Share2 size={18} />
-          <span className="text-sm tabular-nums">{compact(post.share_count)}</span>
+        <button
+          type="button"
+          disabled={bookmarkPending}
+          onClick={toggleBookmark}
+          aria-label={t(bookmarked ? 'เอาออกจากที่บันทึกไว้' : 'บันทึกโพสต์')}
+          aria-pressed={bookmarked}
+          title={t(bookmarked ? 'เอาออกจากที่บันทึกไว้' : 'บันทึกโพสต์')}
+          className={clsx(
+            'btn-ghost gap-2 px-3',
+            bookmarked && 'text-brand-700',
+            bookmarkPending && 'opacity-60',
+          )}
+        >
+          <Bookmark size={18} fill={bookmarked ? 'currentColor' : 'none'} />
         </button>
       </div>
     </article>
