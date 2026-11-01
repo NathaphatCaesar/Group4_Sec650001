@@ -197,7 +197,7 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
 
   const userId = await currentUserId();
-  const [subjects, { data: profilesData }, { data: attachData }, { data: bookmarkData }] = await Promise.all([
+  const [subjects, { data: profilesData }, { data: attachData }, bookmarkResult] = await Promise.all([
     getSubjects(),
     db().from('profiles').select('*').in('id', authorIds),
     db()
@@ -207,11 +207,14 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       .order('sort_order', { ascending: true }),
     userId
       ? db().from('bookmarks').select('post_id').eq('user_id', userId).in('post_id', postIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
+  if (bookmarkResult.error) {
+    console.error('[feed] bookmark lookup failed', bookmarkResult.error);
+  }
   const bookmarkedIds = new Set(
-    ((bookmarkData ?? []) as Array<{ post_id: string }>).map((b) => b.post_id),
+    ((bookmarkResult.data ?? []) as Array<{ post_id: string }>).map((b) => b.post_id),
   );
 
   const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
@@ -345,7 +348,10 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
         .from('bookmarks')
         .select('post_id')
         .eq('user_id', me.id);
-      if (marksError) return [];
+      if (marksError) {
+        console.error('[feed] saved posts lookup failed', marksError);
+        return [];
+      }
       const ids = ((marks ?? []) as Array<{ post_id: string }>).map((m) => m.post_id);
       if (ids.length === 0) return [];
       query = query.in('id', ids);

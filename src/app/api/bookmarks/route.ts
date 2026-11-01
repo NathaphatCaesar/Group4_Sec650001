@@ -15,7 +15,10 @@ async function update(request: Request, action: typeof bookmark | typeof unbookm
 
   const result = await action(body.postId);
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error, ...(result.code ? { code: result.code } : {}) },
+      { status: result.status },
+    );
   }
   return NextResponse.json({ ok: true, bookmarked: result.bookmarked });
 }
