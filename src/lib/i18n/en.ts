@@ -776,6 +776,13 @@ export const EN: Record<string, string> = {
     'This TU account is already linked to a different user — please contact an admin.',
   'ข้อมูลโปรไฟล์ชนกับบัญชีอื่น (รหัสนักศึกษาหรือชื่อผู้ใช้ซ้ำ) — แจ้งแอดมิน':
     'Your profile clashes with another account (duplicate student ID or username) — contact an admin.',
+  'ผลการค้นหาสำหรับ: {q}': 'Results for: {q}',
+  'พิมพ์คำค้นหาเพื่อค้นหาโพสต์': 'Enter a keyword to search posts.',
+  'ไม่พบผลลัพธ์': 'No results found',
+  'ลองใช้คำค้นหาอื่น': 'Try another keyword.',
+  'พิมพ์รหัสวิชา ชื่อชีท ชื่อเพื่อน หรือเลือกแท็กด้านบนเพื่อดูได้ทั้งหมด':
+    "Search course codes, sheet titles, or friends' names, or select a category above to browse posts.",
+  'รายวิชา': 'Courses',
   'โหลดการแจ้งเตือนไม่สำเร็จ': 'Could not load notifications',
   'เกิดข้อผิดพลาด': 'Something went wrong',
   'อัปเดตสถานะไม่สำเร็จ': 'Could not update status',

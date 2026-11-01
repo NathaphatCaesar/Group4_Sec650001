@@ -390,13 +390,97 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
     const to = from + Math.max(1, params.limit) - 1;
     const { data, error } = await query.range(from, to);
 
-    if (error || !data) return [];
+    if (error) {
+      console.error('getFeed query error:', error);
+      return [];
+    }
+
+    if (!data) {
+      console.error('getFeed returned no data');
+      return [];
+    }
 
     const visibleRows = (data as RawPostRow[]).filter(
       (r) => r.visibility === 'public' || (me && r.author_id === me.id),
     );
 
     return hydratePosts(visibleRows);
+  } catch (error) {
+    console.error('getFeed unexpected error:', error);
+    return [];
+  }
+}
+export async function searchPosts(
+  searchTerm: string,
+  limit = 20,
+): Promise<Post[]> {
+  try {
+    const term = searchTerm.trim();
+
+    if (!term) return [];
+
+    const me = await getMe();
+
+    // Search post titles and body text.
+    let query = db()
+      .from('posts')
+      .select('*')
+      .eq('is_hidden', false)
+      .or(`title.ilike.%${term}%,body.ilike.%${term}%`)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(Math.max(1, Math.min(limit, 50)));
+
+    const { data, error } = await query;
+
+    if (error || !data) return [];
+
+    // Only show public posts or the current user's own posts.
+    const visibleRows = (data as RawPostRow[]).filter(
+      (row) =>
+        row.visibility === 'public' ||
+        (me && row.author_id === me.id),
+    );
+
+    return await hydratePosts(visibleRows);
+
+  } catch {
+    return [];
+  }
+}
+
+export async function searchPeople(
+  searchTerm: string,
+  limit = 10,
+): Promise<SuggestedUser[]> {
+  try {
+    const term = searchTerm.trim();
+
+    if (!term) return [];
+
+    const { data, error } = await db()
+      .from('profiles')
+      .select(
+        'id, username, display_name, avatar_url, role, role_override, faculty_name, entry_year_be, is_suspended',
+      )
+      .eq('is_suspended', false)
+      .or(
+        `username.ilike.%${term}%,display_name.ilike.%${term}%`,
+      )
+      .order('display_name', { ascending: true })
+      .limit(Math.max(1, Math.min(limit, 20)));
+
+    if (error || !data) return [];
+
+    return data.map((u) => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name,
+      avatar_url: u.avatar_url,
+      role: u.role_override ?? u.role,
+      faculty_name: u.faculty_name,
+      study_year: studyYear(u.entry_year_be),
+    }));
   } catch {
     return [];
   }
@@ -438,7 +522,7 @@ export async function getUserProfileAndPosts(
     db().from('follows').select('id', { count: 'exact', head: true }).eq('following_id', userId),
     db().from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', userId),
   ]);
-  
+
   const followerCount = followersRes.count ?? 0;
   const followingCount = followingRes.count ?? 0;
 
@@ -450,7 +534,7 @@ export async function getUserProfileAndPosts(
       .eq('follower_id', me.id)
       .eq('following_id', userId)
       .maybeSingle();
-    
+
     isFollowing = Boolean(followRow);
   }
 
