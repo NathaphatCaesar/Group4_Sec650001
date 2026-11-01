@@ -15,6 +15,7 @@ import { timeAgo, fileSize, compact, meetDate } from '@/lib/utils';
 import type { Post } from '@/lib/types';
 import { deletePost } from '@/actions/posts';
 import { ReportDialog } from '@/components/ReportDialog';
+import { StudyJoinButton } from '@/components/StudyJoinButton';
 import { useT, useLocale } from '@/lib/i18n/client';
 
 function downloadUrl(url: string, name: string) {
@@ -35,6 +36,7 @@ export function PostCard({
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reporting, setReporting] = useState(false);
+  const [study, setStudy] = useState({ status: post.my_signup_status, signupCount: post.signup_count });
   const [bookmarked, setBookmarked] = useState(post.bookmarked);
   const [bookmarkPending, setBookmarkPending] = useState(false);
 
@@ -230,16 +232,29 @@ export function PostCard({
                 <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {post.meet_place}</span>
               ) : null}
               <span className="inline-flex items-center gap-1.5">
-                <Users size={15} /> {t('เข้าร่วมแล้ว {n} คน', { n: `${post.signup_count}${post.capacity ? `/${post.capacity}` : ''}` })}
+                <Users size={15} /> {t('เข้าร่วมแล้ว {n} คน', { n: `${study.signupCount}${post.capacity ? `/${post.capacity}` : ''}` })}
               </span>
             </div>
-            {post.requires_approval ? (
-              <div className="mt-2.5">
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+              {post.requires_approval ? (
                 <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium">
                   {t('ต้องได้รับอนุมัติจากผู้ตั้งกลุ่ม')}
                 </span>
-              </div>
-            ) : null}
+              ) : <span />}
+              {meId ? (
+                <StudyJoinButton
+                  postId={post.id}
+                  isOwner={isMine}
+                  ended={Boolean(post.ended_at)}
+                  requiresApproval={post.requires_approval}
+                  capacity={post.capacity}
+                  signupCount={study.signupCount}
+                  pendingCount={post.pending_count}
+                  status={study.status}
+                  onChange={setStudy}
+                />
+              ) : null}
+            </div>
           </div>
         ) : null}
 
