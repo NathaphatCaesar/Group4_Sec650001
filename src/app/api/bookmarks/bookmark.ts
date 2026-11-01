@@ -4,7 +4,7 @@ import { currentUserId } from '@/lib/session';
 
 type BookmarkResult =
 	| { ok: true; bookmarked: boolean }
-	| { ok: false; status: 400 | 401 | 404 | 502; error: string };
+	| { ok: false; status: 400 | 401 | 404 | 502 | 503; error: string; code?: string };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -51,7 +51,28 @@ async function updateBookmark(postId: string, shouldBookmark: boolean): Promise<
 
 	if (error) {
 		console.error('[bookmark] update failed', error);
-		return { ok: false, status: 502, error: 'บันทึกโพสต์ไม่สำเร็จ' };
+		if (error.code === '42P01' || error.code === 'PGRST205') {
+			return {
+				ok: false,
+				status: 503,
+				error: 'ระบบบันทึกโพสต์ยังไม่ได้ตั้งค่าฐานข้อมูล กรุณารัน database/bookmarks.sql',
+			};
+		}
+		if (error.code === '42P10') {
+			return {
+				ok: false,
+				status: 503,
+				error: 'ฐานข้อมูลยังไม่มี unique index สำหรับ bookmark กรุณารัน database/bookmarks.sql เวอร์ชันล่าสุด',
+			};
+		}
+		if (error.code === '42703' || error.code === 'PGRST204') {
+			return {
+				ok: false,
+				status: 503,
+				error: 'โครงสร้างตาราง bookmark ไม่ตรงกับ API กรุณารัน database/bookmarks.sql เวอร์ชันล่าสุด',
+			};
+		}
+		return { ok: false, status: 502, error: 'บันทึกโพสต์ไม่สำเร็จ', code: error.code };
 	}
 
 	return { ok: true, bookmarked: shouldBookmark };
