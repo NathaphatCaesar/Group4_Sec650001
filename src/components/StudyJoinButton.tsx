@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, Clock, UserPlus, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, MessageCircle, UserPlus, XCircle } from 'lucide-react';
 import type { SignupStatus } from '@/lib/types';
 import { useT } from '@/lib/i18n/client';
 
@@ -27,9 +27,14 @@ export function StudyJoinButton({
 
   if (isOwner) {
     return (
-      <Link href="/study" className="btn-soft px-3 py-1.5 text-xs">
-        {t('จัดการคำขอ')}{pendingCount ? ` (${pendingCount})` : ''}
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        <Link href={`/study/${postId}`} className="btn-soft px-3 py-1.5 text-xs">
+          <MessageCircle size={14} /> {t('แชทกลุ่ม')}
+        </Link>
+        <Link href="/study" className="btn-soft px-3 py-1.5 text-xs">
+          {t('จัดการคำขอ')}{pendingCount ? ` (${pendingCount})` : ''}
+        </Link>
+      </div>
     );
   }
 
@@ -57,9 +62,14 @@ export function StudyJoinButton({
   let button: React.ReactNode;
   if (status === 'approved') {
     button = (
-      <button type="button" disabled={busy} onClick={() => send('DELETE')} className="btn-outline px-3 py-1.5 text-xs" title={t('ออกจากนัดติว')}>
-        <CheckCircle2 size={14} /> {t('เข้าร่วมแล้ว')} · {t('ออก')}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <Link href={`/study/${postId}`} className="btn-soft px-3 py-1.5 text-xs">
+          <MessageCircle size={14} /> {t('แชทกลุ่ม')}
+        </Link>
+        <button type="button" disabled={busy} onClick={() => send('DELETE')} className="btn-outline px-3 py-1.5 text-xs" title={t('ออกจากนัดติว')}>
+          <CheckCircle2 size={14} /> {t('เข้าร่วมแล้ว')} · {t('ออก')}
+        </button>
+      </div>
     );
   } else if (status === 'pending') {
     button = (
