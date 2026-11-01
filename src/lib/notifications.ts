@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from '@/lib/supabase';
+import { sendPushToUsers } from '@/lib/push';
 
 export const NOTIFICATION_TYPES = [
   'like',
@@ -85,6 +86,8 @@ export async function createNotification(input: CreateNotificationInput) {
     throw new Error('ไม่สามารถสร้างการแจ้งเตือนได้');
   }
 
+  await pushNotification([input.recipientId], input);
+
   return { notification: data, skipped: false } as const;
 }
 
@@ -120,7 +123,45 @@ export async function notifyManySafely(
   if (rows.length === 0) return;
 
   const { error } = await db().from('notifications').insert(rows);
-  if (error) console.error('Notify many failed:', error.message);
+  if (error) {
+    console.error('Notify many failed:', error.message);
+    return;
+  }
+
+  await pushNotification(rows.map((row) => row.recipient_id), input);
+}
+
+async function pushNotification(
+  recipientIds: string[],
+  input: Omit<CreateNotificationInput, 'recipientId'>,
+) {
+  type Actor = { username: string; display_name: string };
+  let actor: Actor | null = null;
+  if (input.actorId) {
+    const { data } = await db()
+      .from('profiles')
+      .select('username, display_name')
+      .eq('id', input.actorId)
+      .maybeSingle();
+    actor = (data as Actor | null) ?? null;
+  }
+  const name = actor?.display_name ?? 'มีคน';
+  const title = typeof input.payload?.title === 'string' ? input.payload.title : '';
+
+  let body = 'คุณมีการแจ้งเตือนใหม่';
+  let url = '/notifications';
+  if (input.type === 'follow') {
+    body = `${name} เริ่มติดตามคุณ`;
+    if (actor) url = `/u/${actor.username}`;
+  } else if (input.type === 'announce') {
+    body = title ? `${name} โพสต์ประกาศใหม่: ${title}` : `${name} โพสต์ประกาศใหม่`;
+  } else if (input.type === 'report_resolved') {
+    body = input.payload?.action === 'dismiss'
+      ? 'รายงานของคุณได้รับการตรวจแล้ว ไม่พบการทำผิดกฎ'
+      : 'รายงานของคุณได้รับการดำเนินการแล้ว';
+  }
+
+  await sendPushToUsers(recipientIds, { title: 'BACKHOME TU', body, url });
 }
 
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
