@@ -4,6 +4,8 @@ import { RoleBadge } from '@/components/RoleBadge';
 import { Avatar } from '@/components/Avatar';
 import { LanguageSettings } from '@/components/LanguageSettings';
 import { AccentSettings } from '@/components/AccentSettings';
+import { PushSettings } from '@/components/PushSettings';
+import { vapidPublicKey } from '@/lib/push';
 import { getMe } from '@/lib/data';
 import { getT } from '@/lib/i18n/server';
 
@@ -52,6 +54,8 @@ export default async function SettingsPage() {
           </p>
         </dl>
       </section>
+
+      <PushSettings publicKey={vapidPublicKey()} />
 
       <LanguageSettings />
 

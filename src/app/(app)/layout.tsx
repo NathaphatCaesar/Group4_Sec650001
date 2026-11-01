@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { Bell, MessageCircle } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { SideNav, MobileNav, type NavItem } from '@/components/NavLinks';
 import { SearchBox } from '@/components/SearchBox';
@@ -26,12 +26,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/', label: 'หน้าฟีด', icon: 'Home' },
     { href: '/search', label: 'ค้นหา', icon: 'Search' },
     { href: '/notifications', label: 'การแจ้งเตือน', icon: 'Bell', badge: unreadNotifications },
-    { href: '/chat', label: 'แชท', icon: 'MessageCircle' },
     { href: '/study', label: 'นัดติวของฉัน', icon: 'CalendarClock' },
-    { href: '/leaderboard', label: 'อันดับดาว', icon: 'Trophy' },
     { href: `/u/${me.username}`, label: 'โปรไฟล์', icon: 'User' },
     ...(me.role === 'admin'
-      ? [{ href: '/admin/reports', label: 'คิวรายงาน', icon: 'Flag', badge: pendingReports } satisfies NavItem]
+      ? [
+          { href: '/admin', label: 'แดชบอร์ด', icon: 'LayoutDashboard' } satisfies NavItem,
+          { href: '/admin/reports', label: 'คิวรายงาน', icon: 'Flag', badge: pendingReports } satisfies NavItem,
+        ]
       : []),
   ];
 
@@ -39,7 +40,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/', label: 'หน้าฟีด', icon: 'Home' },
     { href: '/study', label: 'นัดติว', icon: 'CalendarClock' },
     { action: 'compose', label: 'โพสต์', icon: 'Plus' },
-    { href: '/leaderboard', label: 'อันดับดาว', icon: 'Trophy' },
     { href: `/u/${me.username}`, label: 'โปรไฟล์', icon: 'User' },
   ];
 
@@ -51,7 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         style={{ paddingTop: 'var(--safe-top)' }}
       >
         <div className="mx-auto flex h-14 max-w-[1500px] items-center gap-2 px-4 md:h-16 md:gap-4">
-          <Link href="/" className="flex shrink-0 items-center lg:w-[248px]"><Logo size={40} /></Link>
+          <Link href="/" className="flex shrink-0 items-center lg:w-[248px]"><span className="hidden sm:block"><Logo height={40} /></span><span className="sm:hidden"><Logo variant="mark" height={36} /></span></Link>
 
           <div className="min-w-0 flex-1">
             <Suspense fallback={<div className="skeleton h-11 w-full" />}>
@@ -67,9 +67,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   {unreadNotifications > 9 ? '9+' : unreadNotifications}
                 </span>
               ) : null}
-            </Link>
-            <Link href="/chat" aria-label={t('แชท')} className="relative rounded-full p-2.5 text-ink-soft hover:bg-brand-50">
-              <MessageCircle size={20} />
             </Link>
             <UserMenu me={me} />
           </div>
