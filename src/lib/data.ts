@@ -18,6 +18,9 @@ import type {
   ReportItem,
   ReportReason,
   ReportStatus,
+  SignupStatus,
+  StudySession,
+  StudySignup,
   Subject,
   UserRole,
 } from '@/lib/types';
@@ -222,6 +225,47 @@ interface RawAttachmentRow {
   sort_order: number;
 }
 
+interface StudyMemberRow {
+  post_id: string;
+  user_id: string;
+  status: Exclude<SignupStatus, 'none'>;
+  created_at: string;
+  decided_at: string | null;
+}
+
+// U14: สมาชิกนัดติวของหลายโพสต์ในครั้งเดียว จัดกลุ่มตาม post_id
+async function getStudyMembers(postIds: string[]): Promise<Map<string, StudyMemberRow[]>> {
+  const byPost = new Map<string, StudyMemberRow[]>();
+  if (!postIds.length) return byPost;
+
+  const { data, error } = await db()
+    .from('study_members')
+    .select('post_id, user_id, status, created_at, decided_at')
+    .in('post_id', postIds)
+    .order('created_at', { ascending: true });
+  if (error) {
+    console.error('[study] members lookup failed', error.message);
+    return byPost;
+  }
+  for (const m of (data ?? []) as StudyMemberRow[]) {
+    const list = byPost.get(m.post_id) ?? [];
+    list.push(m);
+    byPost.set(m.post_id, list);
+  }
+  return byPost;
+}
+
+function studySummary(members: StudyMemberRow[] | undefined, userId: string | null) {
+  const list = members ?? [];
+  const mine = userId ? list.find((m) => m.user_id === userId)?.status ?? 'none' : 'none';
+  return {
+    signup_count: list.filter((m) => m.status === 'approved').length,
+    pending_count: list.filter((m) => m.status === 'pending').length,
+    my_signup_status: mine as SignupStatus,
+    is_signed_up: mine === 'approved',
+  };
+}
+
 async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   if (!rows.length) return [];
 
@@ -248,6 +292,8 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   const bookmarkedIds = new Set(
     ((bookmarkResult.data ?? []) as Array<{ post_id: string }>).map((b) => b.post_id),
   );
+
+  const studyMembers = await getStudyMembers(rows.filter((r) => r.tag === 'studybuddy').map((r) => r.id));
 
   const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
   const authorMap = new Map<string, Author>();
@@ -335,12 +381,9 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       meet_place: r.meet_place,
       capacity: r.capacity,
       requires_approval: Boolean(r.requires_approval),
-      signup_count: 0,
-      pending_count: 0,
-      my_signup_status: 'none',
+      ...studySummary(studyMembers.get(r.id), userId),
       ended_at: r.ended_at,
       chat_expires_at: r.chat_expires_at,
-      is_signed_up: false,
       conversation_id: r.conversation_id,
       accepted_comment_id: r.accepted_comment_id,
       like_count: Number(r.like_count ?? 0),
@@ -731,4 +774,110 @@ export async function getPendingReportCount(): Promise<number> {
     .select('id', { count: 'exact', head: true })
     .eq('status', 'pending');
   return error ? 0 : (count ?? 0);
+}
+
+export interface MyStudySession extends StudySession {
+  members: StudySignup[];
+}
+
+// U14: หน้า "นัดติวของฉัน" นัดที่ฉันสร้าง (พร้อมรายชื่อผู้ขอ) และนัดที่ฉันขอเข้าร่วม
+export async function getMyStudySessions(): Promise<{ owned: MyStudySession[]; joined: MyStudySession[] }> {
+  const userId = await currentUserId();
+  if (!userId) return { owned: [], joined: [] };
+
+  const [{ data: ownedRows }, { data: myRows }] = await Promise.all([
+    db()
+      .from('posts')
+      .select('*')
+      .eq('author_id', userId)
+      .eq('tag', 'studybuddy')
+      .eq('is_hidden', false)
+      .order('meet_at', { ascending: false, nullsFirst: false })
+      .limit(50),
+    db().from('study_members').select('post_id').eq('user_id', userId).limit(100),
+  ]);
+
+  const joinedIds = ((myRows ?? []) as Array<{ post_id: string }>).map((r) => r.post_id);
+  const { data: joinedRows } = joinedIds.length
+    ? await db()
+        .from('posts')
+        .select('*')
+        .in('id', joinedIds)
+        .eq('is_hidden', false)
+        .order('meet_at', { ascending: false, nullsFirst: false })
+    : { data: [] };
+
+  const owned = (ownedRows ?? []) as RawPostRow[];
+  const joined = (joinedRows ?? []) as RawPostRow[];
+  const all = [...owned, ...joined];
+  if (!all.length) return { owned: [], joined: [] };
+
+  const members = await getStudyMembers(all.map((r) => r.id));
+  const memberIds = owned.flatMap((r) => (members.get(r.id) ?? []).map((m) => m.user_id));
+  const peopleIds = Array.from(new Set([...all.map((r) => r.author_id), ...memberIds]));
+
+  const [subjects, { data: peopleRows }] = await Promise.all([
+    getSubjects(),
+    db()
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, role, role_override, faculty_name, entry_year_be, stars')
+      .in('id', peopleIds),
+  ]);
+  const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
+  const people = new Map<string, StudySignup['user']>();
+  for (const p of (peopleRows ?? []) as Array<Record<string, unknown>>) {
+    people.set(String(p.id), {
+      id: String(p.id),
+      username: String(p.username ?? 'user'),
+      display_name: String(p.display_name ?? 'นักศึกษา มธ.'),
+      avatar_url: (p.avatar_url as string | null) ?? null,
+      role: ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student'),
+      study_year: studyYear((p.entry_year_be as number | null) ?? null),
+      faculty_name: (p.faculty_name as string | null) ?? null,
+      stars: Number(p.stars ?? 0),
+    });
+  }
+
+  const now = Date.now();
+  const toSession = (r: RawPostRow): MyStudySession => {
+    const list = members.get(r.id) ?? [];
+    const summary = studySummary(list, userId);
+    const author = people.get(r.author_id) ?? {
+      id: r.author_id, username: 'user', display_name: 'นักศึกษา มธ.', avatar_url: null,
+      role: 'student' as UserRole, study_year: null, faculty_name: null, stars: 0,
+    };
+    const isOwner = r.author_id === userId;
+    return {
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      subject_code: r.subject_code,
+      subject_name: r.subject_code ? (subjectMap.get(r.subject_code) ?? null) : null,
+      meet_at: r.meet_at,
+      meet_place: r.meet_place,
+      capacity: r.capacity,
+      requires_approval: Boolean(r.requires_approval),
+      ended_at: r.ended_at,
+      is_ended: Boolean(r.ended_at),
+      chat_expires_at: r.chat_expires_at,
+      is_owner: isOwner,
+      my_status: summary.my_signup_status,
+      signup_count: summary.signup_count,
+      pending_count: summary.pending_count,
+      conversation_id: r.conversation_id,
+      is_past: r.meet_at ? new Date(r.meet_at).getTime() < now : false,
+      author,
+      members: isOwner
+        ? list.map((m) => ({
+            user_id: m.user_id,
+            status: m.status,
+            created_at: m.created_at,
+            decided_at: m.decided_at,
+            user: people.get(m.user_id) ?? { ...author, id: m.user_id, username: 'user', display_name: 'นักศึกษา มธ.', avatar_url: null },
+          }))
+        : [],
+    };
+  };
+
+  return { owned: owned.map(toSession), joined: joined.map(toSession) };
 }
