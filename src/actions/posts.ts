@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/supabase';
+import { notifyManySafely } from '@/lib/notifications';
 import { getMe } from '@/lib/data';
 import { TAG_ORDER, type PostTag } from '@/lib/types';
 
@@ -142,6 +143,18 @@ export async function createPost(
       reason: 'โพสต์ #ชีท พร้อมไฟล์',
       delta: starsAwarded,
     });
+  }
+
+  // โพสต์ #ประกาศ แจ้งเตือนผู้ติดตามทุกคน
+  if (tag === 'announce') {
+    const { data: followers } = await db()
+      .from('follows')
+      .select('follower_id')
+      .eq('following_id', me.id);
+    await notifyManySafely(
+      ((followers ?? []) as Array<{ follower_id: string }>).map((f) => f.follower_id),
+      { actorId: me.id, type: 'announce', postId, payload: { title } },
+    );
   }
 
   revalidatePath('/');

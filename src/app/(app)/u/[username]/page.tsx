@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { CalendarDays, GraduationCap, Lock } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
+import { ProfileEditDialog } from '@/components/ProfileEditDialog';
 import { RoleBadge } from '@/components/RoleBadge';
 import { FollowButton } from '@/components/FollowButton';
+import { ComposeButton } from '@/components/Composer';
 import { FeedList } from '@/components/FeedList';
 import { getUserProfileAndPosts, getMe } from '@/lib/data';
 import { compact, dateOnly } from '@/lib/utils';
@@ -57,7 +59,12 @@ export default async function ProfilePage({
             />
             <div className="flex items-center gap-2 pb-1">
               {profile.is_me ? (
-                <Link href="/settings" className="btn-outline px-5 py-2 text-sm">{t('แก้ไขโปรไฟล์')}</Link>
+                <ProfileEditDialog
+                  displayName={profile.display_name}
+                  username={profile.username}
+                  avatarUrl={profile.avatar_url}
+                  bio={profile.bio}
+                />
               ) : (
                 <FollowButton targetId={profile.id} initial={profile.is_following} size="md" />
               )}
@@ -93,6 +100,14 @@ export default async function ProfilePage({
               <CalendarDays size={14} /> {t('เข้าร่วม {date}', { date: dateOnly(profile.created_at, locale) })}
             </span>
           </dl>
+
+          {profile.is_me ? (
+            <ComposeButton
+              tag="sheet"
+              label={t('อัปโหลดชีทสรุป')}
+              className="btn-primary mt-4 w-full py-2 text-sm"
+            />
+          ) : null}
 
           <div className="mt-4 grid grid-cols-5 gap-2 rounded-2xl bg-[color:var(--color-canvas)] p-3 text-center">
             <Stat label={t('ดาว')} value={profile.stars} accent />
