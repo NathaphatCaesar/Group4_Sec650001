@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Star, Trophy, Sparkles } from 'lucide-react';
+import { Star, Sparkles } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { RoleBadge } from '@/components/RoleBadge';
 import { getSuggestedUsers, type Me } from '@/lib/data';
@@ -45,14 +45,6 @@ export async function RightRail({ me }: { me: Me }) {
         <p className="mt-2 text-xs text-ink-soft">{t('โพสต์ชีทดี ๆ แล้วเก็บดาวเพิ่มได้อีกนะ')}</p>
       </section>
 
-      <section className="card p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
-            <Trophy size={15} className="text-amber-500" /> {t('Top 5 ผู้มีดาวสูงสุด')}
-          </h2>
-        </div>
-        <p className="text-xs text-ink-soft">{t('ยังไม่มีข้อมูล')}</p>
-      </section>
 
       <section className="card bg-gradient-to-br from-brand-50 to-amber-50 p-4">
         <p className="flex items-center gap-1.5 text-sm font-semibold">

@@ -32,10 +32,8 @@ export const EN: Record<string, string> = {
   'หน้าฟีด': 'Feed',
   'ค้นหา': 'Search',
   'การแจ้งเตือน': 'Notifications',
-  'แชท': 'Chat',
   'นัดติว': 'Study meetups',
   'นัดติวของฉัน': 'My study meetups',
-  'อันดับดาว': 'Star leaderboard',
   'โปรไฟล์': 'Profile',
   'รายงาน': 'Reports',
   'แดชบอร์ด': 'Dashboard',
@@ -354,9 +352,9 @@ export const EN: Record<string, string> = {
   'สถานที่ เช่น ตึก SC3 ชั้น 2': 'Place, e.g. SC3 building, 2nd floor',
   'รับกี่คน (ไม่บังคับ)': 'Max people (optional)',
   'ต้องให้ฉันอนุมัติก่อนเข้าร่วม': 'I approve people before they join',
-  'คนกดขอแล้วต้องรอคุณกดรับ ถึงจะเข้ากลุ่มแชทได้':
-    'People request to join and wait for you to accept before entering the group chat.',
-  'ตอนนี้ใครกดก็เข้ากลุ่มแชทได้เลย': 'Right now anyone who taps join enters the group chat straight away.',
+  'คนกดขอแล้วต้องรอคุณกดรับ ถึงจะเข้าร่วมนัดติวได้':
+    'People request to join and wait for you to accept before joining the meetup.',
+  'ตอนนี้ใครกดก็เข้าร่วมนัดติวได้เลย': 'Right now anyone who taps join is in straight away.',
 
   'เข้าร่วมติว': 'Join',
   'ขอเข้าร่วม': 'Request to join',
@@ -622,7 +620,6 @@ export const EN: Record<string, string> = {
   'สถิติของคุณ': 'Your stats',
   'อีก {n} ดาว จะแซง {name} ขึ้นอันดับ {rank}': '{n} more stars to pass {name} and reach rank {rank}',
   'แนะนำให้ติดตาม': 'Suggested to follow',
-  'Top 5 ผู้มีดาวสูงสุด': 'Top 5 star earners',
   'แชร์ชีทดี ๆ รับดาวไปเลย': 'Share good sheets, earn stars',
   'โพสต์ #ชีท พร้อมไฟล์ +10 ดาว · มีคนถูกใจ +1 ดาว · คำตอบถูกเลือก +25 ดาว':
     'A #sheets post with a file +10 · each like +1 · best answer +25',
