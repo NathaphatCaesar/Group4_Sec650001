@@ -57,7 +57,7 @@ export function PostCard({
   }
 
   async function onToggleLike() {
-    if (!meId || isMine || likeLoading) return;
+    if (!meId || likeLoading) return;
 
     const previousLiked = liked;
     const previousCount = likeCount;
@@ -311,21 +311,19 @@ export function PostCard({
         <button
           type="button"
           onClick={onToggleLike}
-          disabled={!meId || isMine || likeLoading}
+          disabled={!meId || likeLoading}
           aria-pressed={liked}
           title={
             !meId
               ? 'กรุณาเข้าสู่ระบบก่อน'
-              : isMine
-                ? 'ไม่สามารถกดไลก์โพสต์ของตัวเองได้'
-                : liked
-                  ? 'ยกเลิกไลก์'
-                  : 'ถูกใจ'
+              : liked
+                ? 'ยกเลิกไลก์'
+                : 'ถูกใจ'
           }
           className={clsx(
             'btn-ghost gap-2 px-3',
             liked && 'text-rose-600',
-            (!meId || isMine || likeLoading) && 'opacity-60',
+            (!meId || likeLoading) && 'opacity-60',
           )}
         >
           <Heart size={18} fill={liked ? 'currentColor' : 'none'} />

@@ -47,11 +47,15 @@ async function toggleLike(
       );
     }
 
-    const { data, error } = await db().rpc('toggle_post_like', {
-      p_post_id: postId,
-      p_user_id: me.id,
-      p_liked: liked,
-    });
+    const isOwnPost = postResult.data.author_id === me.id;
+    const { data, error } = await db().rpc(
+      isOwnPost ? 'toggle_self_post_like' : 'toggle_post_like',
+      {
+        p_post_id: postId,
+        p_user_id: me.id,
+        p_liked: liked,
+      }
+    );
 
     if (error) {
       if (error.message.includes('post_not_found')) {
@@ -61,9 +65,9 @@ async function toggleLike(
         );
       }
 
-      if (error.message.includes('cannot_like_own_post')) {
+      if (error.message.includes('not_own_post')) {
         return NextResponse.json(
-          { error: 'ไม่สามารถกดไลก์โพสต์ของตัวเองได้' },
+          { error: 'ไม่สามารถกดไลก์โพสต์นี้ได้' },
           { status: 400 }
         );
       }
@@ -76,7 +80,7 @@ async function toggleLike(
       );
     }
 
-    if (liked && data?.changed) {
+    if (liked && data?.changed && !isOwnPost) {
       await notifySafely({
         recipientId: postResult.data.author_id,
         actorId: me.id,
