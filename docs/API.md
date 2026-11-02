@@ -44,6 +44,24 @@ Body: `{ "postId": "<uuid>" }` → `{ "ok": true, "bookmarked": boolean }`
 | 404 | (POST) ไม่พบโพสต์ หรือโพสต์ถูกซ่อน/ไม่ใช่ public |
 | 502 | ฐานข้อมูลมีปัญหา |
 
+## GET /api/admin/reports — กรองรายงาน (admin เท่านั้น)
+ตัวกรองทุกตัวใช้ร่วมกันได้ (AND) · index อยู่ใน `database/reports_filter_indexes.sql`
+| Query | ค่าที่รับ | ค่าเริ่มต้น |
+|---|---|---|
+| `reason` | `all` \| `wrong_info` \| `copyright` \| `spam` \| `inappropriate` \| `privacy` | `all` |
+| `status` | `all` \| `pending` \| `actioned` \| `dismissed` | `all` |
+| `q` | ค้นใน `detail` และ `post_excerpt` ยาวไม่เกิน 100 ตัวอักษร | ไม่ค้น |
+| `sort` | `newest` \| `oldest` (ตามวันที่รายงาน) | `status=pending` ใช้ `oldest` นอกนั้น `newest` |
+| `page` | จำนวนเต็ม ≥ 1 หน้าละ 20 รายการ | `1` |
+
+| Status | ความหมาย |
+|---|---|
+| 200 | `{ reports, total, page, pageSize }` · `page` เกินหน้าสุดท้ายจะได้หน้าสุดท้ายแทน |
+| 400 | ค่าใน query ไม่ถูกต้อง |
+| 401 / 403 | ยังไม่ล็อกอิน / ไม่ใช่ admin |
+| 429 | เกิน 120 ครั้ง/นาที |
+| 500 | ฐานข้อมูลมีปัญหา |
+
 ## Server Actions (`src/actions/posts.ts`)
 - `createPost(input)` — สร้างโพสต์; แท็ก `#ชีท` ต้องมีชื่อ + ไฟล์ ≥ 1 แล้วได้ +10 ดาว → `{ ok, id, starsAwarded }`
 - `deletePost(postId)` — ลบได้เฉพาะเจ้าของหรือ admin
@@ -55,7 +73,7 @@ Body: `{ "postId": "<uuid>" }` → `{ "ok": true, "bookmarked": boolean }`
 ## Data (`src/lib/data.ts`)
 - `getFeed({ tag, subject, faculty, group, scope, sort: 'new'|'top', offset, limit })` — ไม่รวมโพสต์ที่ถูกซ่อน, เห็นเฉพาะ public หรือของตัวเอง; `scope: 'bookmarks'` แสดงเฉพาะโพสต์ที่ผู้ใช้บันทึกไว้ (ยังไม่ล็อกอิน → ว่าง) และทุกโพสต์มี `bookmarked` บอกว่าผู้ใช้บันทึกไว้หรือไม่
 - `getUserProfileAndPosts(username)` — โปรไฟล์ + โพสต์ + ชีท + จำนวนผู้ติดตาม
-- `getReports('pending' | 'closed')` — คิวรายงานสำหรับหน้า `/admin/reports` (admin เท่านั้น, รวมโพสต์ที่ถูกซ่อน)
+- `getReports({ reason, status, q, sort, page })` — คิวรายงานสำหรับหน้า `/admin/reports` (admin เท่านั้น, รวมโพสต์ที่ถูกซ่อน) → `{ reports, total, page, pageSize }` · throw เมื่อฐานข้อมูลมีปัญหา
 - `getPendingReportCount()` — จำนวนรายงานที่รอตรวจ (badge ในเมนูแอดมิน)
 
 ## นัดติว (U14) — `/api/study/{id}/…`

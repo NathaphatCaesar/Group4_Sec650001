@@ -1,9 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import clsx from 'clsx';
-import { ReportQueue } from '@/components/ReportQueue';
+import { ReportBoard } from '@/components/ReportBoard';
 import { getMe, getReports } from '@/lib/data';
 import { getT } from '@/lib/i18n/server';
+import { DEFAULT_REPORT_FILTERS, parseReportFilters, type ReportPage } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export async function generateMetadata() {
@@ -19,31 +18,29 @@ export default async function AdminReportsPage({
   const [t, me, sp] = await Promise.all([getT(), getMe(), searchParams]);
   if (!me || me.role !== 'admin') notFound();
 
-  const view = sp.view === 'closed' ? 'closed' : 'pending';
-  const reports = await getReports(view);
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    const first = Array.isArray(value) ? value[0] : value;
+    if (first !== undefined) params.set(key, first);
+  }
+  // เปิดหน้าโดยไม่ระบุสถานะ = ดูคิวที่รอตรวจ, URL ผิดรูปแบบ = กลับไปค่าเริ่มต้น
+  if (!params.get('status')) params.set('status', 'pending');
+  const filters = parseReportFilters(params) ?? DEFAULT_REPORT_FILTERS;
 
-  const tabs = [
-    { key: 'pending', label: t('รอตรวจ'), href: '/admin/reports' },
-    { key: 'closed', label: t('ปิดเคสแล้ว'), href: '/admin/reports?view=closed' },
-  ];
+  let initialData: ReportPage | null = null;
+  try {
+    initialData = await getReports(filters);
+  } catch (err) {
+    console.error('[admin/reports] load failed', err);
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-[680px] flex-col gap-3">
       <h1 className="px-1 text-lg font-bold">{t('คิวรายงาน')}</h1>
-
-      <nav className="flex gap-2">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.key}
-            href={tab.href}
-            className={clsx('chip px-3.5 py-1.5 text-sm', view === tab.key ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-ink-soft')}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
-
-      <ReportQueue reports={reports} view={view} />
+      <ReportBoard
+        initialFilters={{ ...filters, page: initialData?.page ?? filters.page }}
+        initialData={initialData}
+      />
     </div>
   );
 }
