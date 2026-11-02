@@ -11,33 +11,39 @@ import { REPORT_REASONS, REPORT_DETAIL_MAX, type ReportAction, type ReportItem }
 import { timeAgo } from '@/lib/utils';
 import { useT, useLocale } from '@/lib/i18n/client';
 
-export function ReportQueue({ reports, view }: { reports: ReportItem[]; view: 'pending' | 'closed' }) {
+export function ReportQueue({
+  reports, total, defaultView, onResolved,
+}: {
+  reports: ReportItem[];
+  total: number;
+  defaultView: boolean;
+  onResolved: () => Promise<void>;
+}) {
   const t = useT();
 
   if (!reports.length) {
-    return view === 'pending'
+    return defaultView
       ? <Empty icon={ShieldCheck} title={t('ไม่มีรายงานค้าง')} hint={t('ชุมชนเรียบร้อยดี')} />
-      : <Empty title={t('ยังไม่มีเคสที่ปิดแล้ว')} />;
+      : <Empty title={t('ไม่พบรายงานตามตัวกรอง')} />;
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {view === 'pending' ? (
-        <p className="px-1 text-sm text-ink-soft">{t('ค้างอยู่ {n} รายการ', { n: reports.length })}</p>
-      ) : null}
-      {reports.map((r) => <ReportCase key={r.id} report={r} />)}
+      <p className="px-1 text-sm text-ink-soft">
+        {defaultView ? t('ค้างอยู่ {n} รายการ', { n: total }) : t('พบ {n} รายการ', { n: total })}
+      </p>
+      {reports.map((r) => <ReportCase key={r.id} report={r} onResolved={onResolved} />)}
     </div>
   );
 }
 
-function ReportCase({ report }: { report: ReportItem }) {
+function ReportCase({ report, onResolved }: { report: ReportItem; onResolved: () => Promise<void> }) {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isPending = report.status === 'pending';
@@ -48,15 +54,14 @@ function ReportCase({ report }: { report: ReportItem }) {
     startTransition(async () => {
       const res = await resolveReport(report.id, action, note);
       if (res.ok || res.gone) {
-        setDone(true);
+        // ดึงใหม่ทั้งหน้า เพราะการตัดสินปิดทุกเคสของโพสต์เดียวกัน และเคสที่ปิดแล้วอาจยังตรงตัวกรอง
+        await onResolved();
         router.refresh();
       } else {
         setError(t(res.error));
       }
     });
   }
-
-  if (done) return null;
 
   return (
     <section className="card overflow-hidden">

@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase';
 import { currentUserId } from '@/lib/session';
 import { studyYear } from '@/lib/tu-api';
 import { parseAccent, type Accent } from '@/lib/accent';
+import { REPORT_PAGE_SIZE } from '@/lib/types';
 import type {
   Attachment,
   Author,
@@ -15,7 +16,9 @@ import type {
   PersonCard,
   ProfileView,
   ReportAction,
+  ReportFilters,
   ReportItem,
+  ReportPage,
   ReportReason,
   ReportStatus,
   SignupStatus,
@@ -715,19 +718,38 @@ interface RawReportRow {
   created_at: string;
 }
 
-// U8: คิวรายงานสำหรับแอดมิน 'pending' = รอตรวจ, 'closed' = จัดการแล้ว/ไม่ผิดกฎ
-export async function getReports(view: 'pending' | 'closed', limit = 50): Promise<ReportItem[]> {
+// U8/Task43: คิวรายงานสำหรับแอดมิน กรองตามหมวด/สถานะ/คำค้น เรียงลำดับ และแบ่งหน้า
+// DB error จะ throw เพื่อให้ผู้เรียกแยกออกจาก "ไม่พบรายการ" ได้
+export async function getReports(filters: ReportFilters): Promise<ReportPage> {
+  const pageSize = REPORT_PAGE_SIZE;
   const me = await getMe();
-  if (!me || me.role !== 'admin') return [];
+  if (!me || me.role !== 'admin') return { reports: [], total: 0, page: 1, pageSize };
 
-  let query = db().from('reports').select('*');
-  query = view === 'pending'
-    ? query.eq('status', 'pending').order('created_at', { ascending: true })
-    : query.neq('status', 'pending').order('resolved_at', { ascending: false });
+  // ตัดอักขระที่มีความหมายใน .or() และ wildcard ของ ilike
+  const term = filters.q.replace(/[,()%*\\"]/g, '').trim();
+  const selectFiltered = (columns: string, options?: { count: 'exact'; head: true }) => {
+    let query = db().from('reports').select(columns, options);
+    if (filters.reason !== 'all') query = query.eq('reason', filters.reason);
+    if (filters.status !== 'all') query = query.eq('status', filters.status);
+    if (term) query = query.or(`detail.ilike."%${term}%",post_excerpt.ilike."%${term}%"`);
+    return query;
+  };
 
-  const { data, error } = await query.limit(limit);
-  if (error || !data) return [];
-  const rows = data as RawReportRow[];
+  // นับก่อนเพื่อ clamp หน้า เพราะ .range เกินจำนวนจริงจะได้ 416
+  const { count, error: countError } = await selectFiltered('id', { count: 'exact', head: true });
+  if (countError) throw new Error(`getReports count failed: ${countError.message}`);
+  const total = count ?? 0;
+  if (!total) return { reports: [], total: 0, page: 1, pageSize };
+
+  const page = Math.min(filters.page, Math.ceil(total / pageSize));
+  const from = (page - 1) * pageSize;
+  const ascending = filters.sort === 'oldest';
+  const { data, error } = await selectFiltered('*')
+    .order('created_at', { ascending })
+    .order('id', { ascending })
+    .range(from, from + pageSize - 1);
+  if (error || !data) throw new Error(`getReports failed: ${error?.message ?? 'no data'}`);
+  const rows = data as unknown as RawReportRow[];
 
   const postIds = Array.from(new Set(rows.map((r) => r.post_id).filter((id): id is string => Boolean(id))));
   const reporterIds = Array.from(new Set(rows.map((r) => r.reporter_id)));
@@ -760,7 +782,7 @@ export async function getReports(view: 'pending' | 'closed', limit = 50): Promis
     });
   }
 
-  return rows.map((r) => ({
+  const reports = rows.map((r) => ({
     id: r.id,
     reason: r.reason,
     detail: r.detail,
@@ -775,6 +797,8 @@ export async function getReports(view: 'pending' | 'closed', limit = 50): Promis
     post: r.post_id ? (postMap.get(r.post_id) ?? null) : null,
     reporter: reporterMap.get(r.reporter_id) ?? null,
   }));
+
+  return { reports, total, page, pageSize };
 }
 
 export async function getPendingReportCount(): Promise<number> {
