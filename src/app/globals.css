@@ -5,7 +5,17 @@
   background-image: var(--brand-gradient);
 }
 
-@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+/* dark: ใช้ได้ทั้งตอนเลือกธีมมืดเอง และตอนตั้ง "ตามเครื่อง" แล้วเครื่องเป็นโหมดมืด */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
 
 @theme {
   --font-sans: 'IBM Plex Sans Thai', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;

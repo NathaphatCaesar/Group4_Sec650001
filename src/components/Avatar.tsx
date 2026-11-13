@@ -23,7 +23,7 @@ export function Avatar({
     />
   ) : (
     <span
-      className={clsx('grid shrink-0 place-items-center rounded-full font-semibold text-ink/70', className)}
+      className={clsx('grid shrink-0 place-items-center rounded-full font-semibold text-black/60', className)}
       style={{ width: size, height: size, background: avatarTint(name), fontSize: size * 0.42 }}
       aria-hidden
     >

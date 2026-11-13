@@ -46,14 +46,14 @@ export function ReportFilterBar({
 
   return (
     <div className="card flex flex-col gap-3 p-3">
-      <div role="group" aria-label={t('สถานะ')} className="flex flex-wrap gap-2">
+      <div role="group" aria-label={t('สถานะ')} className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
         {STATUSES.map((s) => (
           <button
             key={s.key}
             type="button"
             aria-pressed={filters.status === s.key}
             onClick={() => onChange({ status: s.key })}
-            className={clsx('chip px-3.5 py-1.5 text-sm', filters.status === s.key ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-ink-soft')}
+            className={clsx('chip shrink-0 whitespace-nowrap px-3.5 py-1.5 text-sm', filters.status === s.key ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-ink-soft')}
           >
             {t(s.label)}
           </button>

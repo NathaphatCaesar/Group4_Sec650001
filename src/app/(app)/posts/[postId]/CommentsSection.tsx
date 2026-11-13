@@ -7,6 +7,7 @@ import { MessageCircle, Send, Trash2 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { RoleBadge } from '@/components/RoleBadge';
 import { timeAgo } from '@/lib/utils';
+import { useLocale, useT } from '@/lib/i18n/client';
 import type { Comment } from '@/lib/types';
 
 export default function CommentsSection({
@@ -19,6 +20,8 @@ export default function CommentsSection({
   isAdmin: boolean;
 }) {
   const router = useRouter();
+  const t = useT();
+  const locale = useLocale();
   const [comments, setComments] = useState<Comment[]>([]);
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(true);
@@ -33,16 +36,16 @@ export default function CommentsSection({
 
     try {
       const res = await fetch(`/api/posts/${postId}/comments`);
-      if (!res.ok) throw new Error('ไม่สามารถโหลดความคิดเห็นได้');
+      if (!res.ok) throw new Error(t('ไม่สามารถโหลดความคิดเห็นได้'));
 
       const data = await res.json();
       setComments(data.comments ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof Error ? err.message : t('เกิดข้อผิดพลาด'));
     } finally {
       setLoading(false);
     }
-  }, [postId]);
+  }, [postId, t]);
 
   useEffect(() => {
     void loadComments();
@@ -66,14 +69,14 @@ export default function CommentsSection({
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? 'ส่งความคิดเห็นไม่สำเร็จ');
+        throw new Error(data?.error ?? t('ส่งความคิดเห็นไม่สำเร็จ'));
       }
 
       setBody('');
       await loadComments();
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      setError(err instanceof Error ? err.message : t('เกิดข้อผิดพลาด'));
     } finally {
       setSending(false);
     }
@@ -90,7 +93,7 @@ export default function CommentsSection({
       method: 'DELETE',
     });
 
-    if (!res.ok) throw new Error('ลบความคิดเห็นไม่สำเร็จ');
+    if (!res.ok) throw new Error(t('ลบความคิดเห็นไม่สำเร็จ'));
 
     setComments((current) =>
       current.filter((c) => c.id !== deletingCommentId)
@@ -99,7 +102,7 @@ export default function CommentsSection({
     setDeletingCommentId(null);
     router.refresh();
   } catch (err) {
-    setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    setError(err instanceof Error ? err.message : t('เกิดข้อผิดพลาด'));
   } finally {
     setDeleting(false);
   }
@@ -119,11 +122,11 @@ export default function CommentsSection({
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-comment-title"
-          className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+          className="card w-full max-w-sm p-6 shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-600">
               <Trash2 size={22} />
             </div>
           </div>
@@ -132,12 +135,11 @@ export default function CommentsSection({
             id="delete-comment-title"
             className="mt-4 text-center text-lg font-bold"
           >
-            ยืนยันการลบความคิดเห็น?
+            {t('ยืนยันการลบความคิดเห็น?')}
           </h2>
 
           <p className="mt-2 text-center text-sm text-ink-soft">
-            คุณต้องการลบความคิดเห็นนี้ใช่หรือไม่?
-            การดำเนินการนี้ไม่สามารถย้อนกลับได้
+            {t('คุณต้องการลบความคิดเห็นนี้ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้')}
           </p>
 
           <div className="mt-6 flex gap-3">
@@ -147,7 +149,7 @@ export default function CommentsSection({
               onClick={() => setDeletingCommentId(null)}
               className="btn-ghost flex-1 justify-center border border-[color:var(--color-line)] py-2.5"
             >
-              ยกเลิก
+              {t('ยกเลิก')}
             </button>
 
             <button
@@ -156,7 +158,7 @@ export default function CommentsSection({
               onClick={deleteComment}
               className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
             >
-              {deleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
+              {deleting ? t('กำลังลบ...') : t('ยืนยันการลบ')}
             </button>
           </div>
         </div>
@@ -165,14 +167,14 @@ export default function CommentsSection({
     
       <form onSubmit={submitComment} className="card p-4">
         <label htmlFor="comment" className="mb-2 block text-sm font-semibold">
-          เขียนความคิดเห็น
+          {t('เขียนความคิดเห็น')}
         </label>
 
         <textarea
           id="comment"
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="แสดงความคิดเห็นของคุณ..."
+          placeholder={t('แสดงความคิดเห็นของคุณ...')}
           maxLength={2000}
           rows={3}
           className="input min-h-24 w-full resize-y"
@@ -189,7 +191,7 @@ export default function CommentsSection({
             className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
           >
             <Send size={15} />
-            {sending ? 'กำลังส่ง...' : 'ส่งความคิดเห็น'}
+            {sending ? t('กำลังส่ง...') : t('ส่งความคิดเห็น')}
           </button>
         </div>
       </form>
@@ -197,7 +199,7 @@ export default function CommentsSection({
       <section className="card overflow-hidden">
         <div className="flex items-center gap-2 border-b border-[color:var(--color-line)] px-5 py-4">
           <MessageCircle size={18} className="text-brand-600" />
-          <h2 className="font-semibold">ความคิดเห็น</h2>
+          <h2 className="font-semibold">{t('ความคิดเห็น')}</h2>
           <span className="text-sm text-ink-soft">({comments.length})</span>
         </div>
 
@@ -213,9 +215,9 @@ export default function CommentsSection({
         ) : comments.length === 0 ? (
           <div className="flex flex-col items-center px-5 py-12 text-center">
             <MessageCircle size={30} className="text-ink-soft/50" />
-            <p className="mt-3 text-sm font-medium">ยังไม่มีความคิดเห็น</p>
+            <p className="mt-3 text-sm font-medium">{t('ยังไม่มีความคิดเห็น')}</p>
             <p className="mt-1 text-xs text-ink-soft">
-              เริ่มแสดงความคิดเห็นเป็นคนแรกได้เลย
+              {t('เริ่มแสดงความคิดเห็นเป็นคนแรกได้เลย')}
             </p>
           </div>
         ) : (
@@ -255,8 +257,8 @@ export default function CommentsSection({
                       <button
                         type="button"
                         onClick={() => setDeletingCommentId(comment.id)}
-                        aria-label="ลบความคิดเห็น"
-                        title="ลบความคิดเห็น"
+                        aria-label={t('ลบความคิดเห็น')}
+                        title={t('ลบความคิดเห็น')}
                         className="rounded-full p-2 text-ink-soft transition-colors hover:bg-brand-50 hover:text-brand-700"
                       >
                         <Trash2 size={15} />
@@ -269,7 +271,7 @@ export default function CommentsSection({
                   </p>
 
                   <p className="mt-2 text-xs text-ink-soft">
-                    {timeAgo(comment.created_at)}
+                    {timeAgo(comment.created_at, locale)}
                   </p>
                 </div>
               </article>
