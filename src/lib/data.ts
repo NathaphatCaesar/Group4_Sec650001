@@ -507,6 +507,7 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
     return [];
   }
 }
+
 export async function searchPosts(
   searchTerm: string,
   limit = 20,
@@ -552,7 +553,6 @@ export async function searchPosts(
 
     if (matchingIds.length === 0) return [];
 
-    
     const { data, error } = await db()
       .from('posts')
       .select('*')
@@ -564,14 +564,14 @@ export async function searchPosts(
 
     if (error || !data) return [];
 
-    
+   
     const visibleRows = (data as RawPostRow[]).filter(
       (row) =>
         row.visibility === 'public' ||
         (me && row.author_id === me.id),
     );
 
-    
+  
     return await hydratePosts(visibleRows);
 
   } catch (error) {
@@ -579,6 +579,7 @@ export async function searchPosts(
     return [];
   }
 }
+
 
 export async function searchPeople(
   searchTerm: string,
