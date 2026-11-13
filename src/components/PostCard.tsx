@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import clsx from 'clsx';
 import {
-  Heart, MessageCircle, Share2, MoreHorizontal, Download,
-  FileText, CalendarClock, MapPin, Users, Trash2, Pin, Megaphone,
+  Heart, MessageCircle, MoreHorizontal, Download,
+  FileText, CalendarClock, MapPin, Users, Trash2, Pin, Megaphone, Flag, Bookmark
 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { RoleBadge } from '@/components/RoleBadge';
@@ -14,6 +14,8 @@ import { TagChip } from '@/components/TagChip';
 import { timeAgo, fileSize, compact, meetDate } from '@/lib/utils';
 import type { Post } from '@/lib/types';
 import { deletePost } from '@/actions/posts';
+import { ReportDialog } from '@/components/ReportDialog';
+import { StudyJoinButton } from '@/components/StudyJoinButton';
 import { useT, useLocale } from '@/lib/i18n/client';
 
 function downloadUrl(url: string, name: string) {
@@ -33,9 +35,21 @@ export function PostCard({
   const [confirming, setConfirming] = useState(false);
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
+  const [study, setStudy] = useState({ status: post.my_signup_status, signupCount: post.signup_count });
+  const [liked, setLiked] = useState(post.liked);
+  const [likeCount, setLikeCount] = useState(post.like_count);
+  const [likeLoading, setLikeLoading] = useState(false);
+  const [bookmarked, setBookmarked] = useState(post.bookmarked);
+  const [bookmarkPending, setBookmarkPending] = useState(false);
+
+  useEffect(() => {
+    setBookmarked(post.bookmarked);
+  }, [post.bookmarked]);
 
   const isMine = meId === post.author.id;
   const canDelete = isMine || isAdmin;
+  const canReport = Boolean(meId) && !isMine;
   const announceDays = post.announce_until
     ? Math.max(1, Math.ceil((new Date(post.announce_until).getTime() - Date.now()) / 86_400_000))
     : 0;
@@ -50,6 +64,40 @@ export function PostCard({
     setConfirming(false);
   }
 
+  async function onToggleLike() {
+    if (!meId || likeLoading) return;
+
+    const previousLiked = liked;
+    const previousCount = likeCount;
+    const nextLiked = !previousLiked;
+
+    setLiked(nextLiked);
+    setLikeCount(previousCount + (nextLiked ? 1 : -1));
+    setLikeLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/posts/${post.id}/like`, {
+        method: nextLiked ? 'POST' : 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'ไม่สามารถเปลี่ยนสถานะไลก์ได้');
+      }
+
+      setLiked(data.liked);
+      setLikeCount(data.like_count);
+    } catch (err) {
+      setLiked(previousLiked);
+      setLikeCount(previousCount);
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setLikeLoading(false);
+    }
+  }
+
   function onDelete() {
     closeMenu();
     setGone(true);
@@ -58,6 +106,34 @@ export function PostCard({
       if (!res.ok) { setGone(false); setError(t(res.error)); }
       else router.refresh();
     });
+  }
+
+  async function toggleBookmark() {
+    if (bookmarkPending) return;
+
+    const previous = bookmarked;
+    setBookmarkPending(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/bookmarks', {
+        method: previous ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id }),
+      });
+      const result = (await response.json()) as { bookmarked?: boolean; error?: string; code?: string };
+      if (!response.ok) {
+        const message = t(result.error ?? 'บันทึกโพสต์ไม่สำเร็จ');
+        setError(response.status === 502 && result.code ? `${message} (${result.code})` : message);
+        return;
+      }
+
+      setBookmarked(Boolean(result.bookmarked));
+      router.refresh();
+    } catch {
+      setError(t('บันทึกโพสต์ไม่สำเร็จ'));
+    } finally {
+      setBookmarkPending(false);
+    }
   }
 
   return (
@@ -98,7 +174,7 @@ export function PostCard({
           />
         </div>
 
-        {canDelete ? (
+        {canDelete || canReport ? (
           <div className="relative">
             <button
               type="button"
@@ -127,13 +203,26 @@ export function PostCard({
                       </div>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50"
-                      onClick={() => setConfirming(true)}
-                    >
-                      <Trash2 size={15} /> {t('ลบโพสต์')}
-                    </button>
+                    <>
+                      {canReport ? (
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 hover:bg-brand-50"
+                          onClick={() => { closeMenu(); setReporting(true); }}
+                        >
+                          <Flag size={15} /> {t('รายงานโพสต์')}
+                        </button>
+                      ) : null}
+                      {canDelete ? (
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50"
+                          onClick={() => setConfirming(true)}
+                        >
+                          <Trash2 size={15} /> {t('ลบโพสต์')}
+                        </button>
+                      ) : null}
+                    </>
                   )}
                 </div>
               </>
@@ -141,6 +230,14 @@ export function PostCard({
           </div>
         ) : null}
       </div>
+
+      {reporting ? (
+        <ReportDialog
+          postId={post.id}
+          onClose={() => setReporting(false)}
+          onGone={() => { setGone(true); router.refresh(); }}
+        />
+      ) : null}
 
       <div className="px-5 pb-1 pt-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -172,16 +269,29 @@ export function PostCard({
                 <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {post.meet_place}</span>
               ) : null}
               <span className="inline-flex items-center gap-1.5">
-                <Users size={15} /> {t('เข้าร่วมแล้ว {n} คน', { n: `${post.signup_count}${post.capacity ? `/${post.capacity}` : ''}` })}
+                <Users size={15} /> {t('เข้าร่วมแล้ว {n} คน', { n: `${study.signupCount}${post.capacity ? `/${post.capacity}` : ''}` })}
               </span>
             </div>
-            {post.requires_approval ? (
-              <div className="mt-2.5">
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+              {post.requires_approval ? (
                 <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-medium">
                   {t('ต้องได้รับอนุมัติจากผู้ตั้งกลุ่ม')}
                 </span>
-              </div>
-            ) : null}
+              ) : <span />}
+              {meId ? (
+                <StudyJoinButton
+                  postId={post.id}
+                  isOwner={isMine}
+                  ended={Boolean(post.ended_at)}
+                  requiresApproval={post.requires_approval}
+                  capacity={post.capacity}
+                  signupCount={study.signupCount}
+                  pendingCount={post.pending_count}
+                  status={study.status}
+                  onChange={setStudy}
+                />
+              ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -247,17 +357,51 @@ export function PostCard({
       </div>
 
       <div className="flex items-center gap-1 px-3 pb-2 pt-1">
-        <button type="button" disabled title={notReady} className="btn-ghost gap-2 px-3 opacity-60">
-          <Heart size={18} />
-          <span className="text-sm tabular-nums">{compact(post.like_count)}</span>
+        <button
+          type="button"
+          onClick={onToggleLike}
+          disabled={!meId || likeLoading}
+          aria-pressed={liked}
+          title={
+            !meId
+              ? 'กรุณาเข้าสู่ระบบก่อน'
+              : liked
+                ? 'ยกเลิกไลก์'
+                : 'ถูกใจ'
+          }
+          className={clsx(
+            'btn-ghost gap-2 px-3',
+            liked && 'text-rose-600',
+            (!meId || likeLoading) && 'opacity-60',
+          )}
+        >
+          <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
+          <span className="text-sm tabular-nums">{compact(likeCount)}</span>
         </button>
-        <button type="button" disabled title={notReady} className="btn-ghost gap-2 px-3 opacity-60">
+        <button
+          type="button"
+          onClick={() => router.push(`/posts/${post.id}`)}
+          className="btn-ghost gap-2 px-3"
+        >
           <MessageCircle size={18} />
-          <span className="text-sm tabular-nums">{compact(post.comment_count)}</span>
+          <span className="text-sm tabular-nums">
+            {compact(post.comment_count)}
+          </span>
         </button>
-        <button type="button" disabled title={notReady} className="btn-ghost gap-2 px-3 opacity-60">
-          <Share2 size={18} />
-          <span className="text-sm tabular-nums">{compact(post.share_count)}</span>
+        <button
+          type="button"
+          disabled={bookmarkPending}
+          onClick={toggleBookmark}
+          aria-label={t(bookmarked ? 'เอาออกจากที่บันทึกไว้' : 'บันทึกโพสต์')}
+          aria-pressed={bookmarked}
+          title={t(bookmarked ? 'เอาออกจากที่บันทึกไว้' : 'บันทึกโพสต์')}
+          className={clsx(
+            'btn-ghost gap-2 px-3',
+            bookmarked && 'text-brand-700',
+            bookmarkPending && 'opacity-60',
+          )}
+        >
+          <Bookmark size={18} fill={bookmarked ? 'currentColor' : 'none'} />
         </button>
       </div>
     </article>

@@ -4,6 +4,7 @@ import { db } from '@/lib/supabase';
 import { currentUserId } from '@/lib/session';
 import { studyYear } from '@/lib/tu-api';
 import { parseAccent, type Accent } from '@/lib/accent';
+import { REPORT_PAGE_SIZE } from '@/lib/types';
 import type {
   Attachment,
   Author,
@@ -12,7 +13,17 @@ import type {
   FeedSort,
   Post,
   PostTag,
+  PersonCard,
   ProfileView,
+  ReportAction,
+  ReportFilters,
+  ReportItem,
+  ReportPage,
+  ReportReason,
+  ReportStatus,
+  SignupStatus,
+  StudySession,
+  StudySignup,
   Subject,
   UserRole,
 } from '@/lib/types';
@@ -45,6 +56,35 @@ export interface FeedParams {
   offset: number;
 }
 
+// Admin access comes only from the admin_allowlist table (database/admin_allowlist.sql);
+// role_override = 'admin' is ignored so it can't be used to grant admin.
+async function allowlistedAdmins(studentIds: Array<string | null | undefined>): Promise<Set<string>> {
+  const ids = Array.from(new Set(studentIds.filter((id): id is string => Boolean(id))));
+  if (!ids.length) return new Set();
+  const { data, error } = await db()
+    .from('admin_allowlist')
+    .select('student_id')
+    .in('student_id', ids)
+    .eq('enabled', true);
+  if (error) {
+    console.error('[admin] allowlist lookup failed', error);
+    return new Set();
+  }
+  return new Set((data ?? []).map((r: { student_id: string }) => r.student_id));
+}
+
+function resolveRole(
+  role: UserRole | null,
+  roleOverride: UserRole | null,
+  studentId: string | null | undefined,
+  allowlisted: Set<string>,
+): UserRole {
+  if (studentId && allowlisted.has(studentId)) return 'admin';
+  const base = role ?? 'student';
+  if (roleOverride === 'admin') return base;
+  return roleOverride ?? base;
+}
+
 export const getMe = cache(async (): Promise<Me | null> => {
   const userId = await currentUserId();
   if (!userId) return null;
@@ -74,13 +114,16 @@ export const getMe = cache(async (): Promise<Me | null> => {
   };
   if (row.is_suspended) return null;
 
+  const allowlisted = await allowlistedAdmins(row.student_id ? [row.student_id] : []);
+  const effectiveRole = resolveRole(row.role, row.role_override, row.student_id, allowlisted);
+
   return {
     id: row.id,
     username: row.username,
     display_name: row.display_name,
     avatar_url: row.avatar_url,
     equipped_frame: null,
-    role: row.role_override ?? row.role,
+    role: effectiveRole,
     faculty_id: row.faculty_id,
     faculty_name: row.faculty_name,
     study_year: studyYear(row.entry_year_be),
@@ -185,13 +228,64 @@ interface RawAttachmentRow {
   sort_order: number;
 }
 
+interface StudyMemberRow {
+  post_id: string;
+  user_id: string;
+  status: Exclude<SignupStatus, 'none'>;
+  created_at: string;
+  decided_at: string | null;
+}
+
+// U14: สมาชิกนัดติวของหลายโพสต์ในครั้งเดียว จัดกลุ่มตาม post_id
+async function getStudyMembers(postIds: string[]): Promise<Map<string, StudyMemberRow[]>> {
+  const byPost = new Map<string, StudyMemberRow[]>();
+  if (!postIds.length) return byPost;
+
+  const { data, error } = await db()
+    .from('study_members')
+    .select('post_id, user_id, status, created_at, decided_at')
+    .in('post_id', postIds)
+    .order('created_at', { ascending: true });
+  if (error) {
+    console.error('[study] members lookup failed', error.message);
+    return byPost;
+  }
+  for (const m of (data ?? []) as StudyMemberRow[]) {
+    const list = byPost.get(m.post_id) ?? [];
+    list.push(m);
+    byPost.set(m.post_id, list);
+  }
+  return byPost;
+}
+
+function studySummary(members: StudyMemberRow[] | undefined, userId: string | null) {
+  const list = members ?? [];
+  const mine = userId ? list.find((m) => m.user_id === userId)?.status ?? 'none' : 'none';
+  return {
+    signup_count: list.filter((m) => m.status === 'approved').length,
+    pending_count: list.filter((m) => m.status === 'pending').length,
+    my_signup_status: mine as SignupStatus,
+    is_signed_up: mine === 'approved',
+  };
+}
+
 async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   if (!rows.length) return [];
 
   const postIds = rows.map((r) => r.id);
   const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
+  const userId = await currentUserId();
+  let likedPostIds = new Set<string>();
+  if (userId) {
+    const { data: likedRows } = await db()
+      .from('post_likes')
+      .select('post_id')
+      .eq('user_id', userId)
+      .in('post_id', postIds);
+    likedPostIds = new Set((likedRows ?? []).map((row) => row.post_id as string));
+  }
 
-  const [subjects, { data: profilesData }, { data: attachData }] = await Promise.all([
+  const [subjects, { data: profilesData }, { data: attachData }, bookmarkResult] = await Promise.all([
     getSubjects(),
     db().from('profiles').select('*').in('id', authorIds),
     db()
@@ -199,14 +293,36 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       .select('id, post_id, file_id, kind, file_name, mime_type, size_bytes, sort_order')
       .in('post_id', postIds)
       .order('sort_order', { ascending: true }),
+    userId
+      ? db().from('bookmarks').select('post_id').eq('user_id', userId).in('post_id', postIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
+
+  if (bookmarkResult.error) {
+    console.error('[feed] bookmark lookup failed', bookmarkResult.error);
+  }
+  const bookmarkedIds = new Set(
+    ((bookmarkResult.data ?? []) as Array<{ post_id: string }>).map((b) => b.post_id),
+  );
+
+  const studyMembers = await getStudyMembers(rows.filter((r) => r.tag === 'studybuddy').map((r) => r.id));
 
   const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
   const authorMap = new Map<string, Author>();
 
-  for (const p of (profilesData ?? []) as Array<Record<string, unknown>>) {
+  const profiles = (profilesData ?? []) as Array<Record<string, unknown>>;
+  const allowlisted = await allowlistedAdmins(
+    profiles.map((p) => (p.student_id ? String(p.student_id) : null)),
+  );
+
+  for (const p of profiles) {
     const id = String(p.id);
-    const role = ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+    const role = resolveRole(
+      p.role as UserRole | null,
+      p.role_override as UserRole | null,
+      p.student_id ? String(p.student_id) : null,
+      allowlisted,
+    );
     authorMap.set(id, {
       id,
       username: String(p.username ?? 'user'),
@@ -277,12 +393,9 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       meet_place: r.meet_place,
       capacity: r.capacity,
       requires_approval: Boolean(r.requires_approval),
-      signup_count: 0,
-      pending_count: 0,
-      my_signup_status: 'none',
+      ...studySummary(studyMembers.get(r.id), userId),
       ended_at: r.ended_at,
       chat_expires_at: r.chat_expires_at,
-      is_signed_up: false,
       conversation_id: r.conversation_id,
       accepted_comment_id: r.accepted_comment_id,
       like_count: Number(r.like_count ?? 0),
@@ -290,13 +403,23 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       share_count: Number(r.share_count ?? 0),
       is_pinned: Boolean(r.is_pinned),
       created_at: r.created_at,
-      liked: false,
-      bookmarked: false,
+      liked: likedPostIds.has(r.id),
+      bookmarked: bookmarkedIds.has(r.id),
       poll: null,
       author: authorMap.get(r.author_id) ?? fallbackAuthor,
       attachments: attachmentsByPost.get(r.id) ?? [],
     };
   });
+}
+
+// U11: id ของผู้ใช้ทั้งหมดที่ userId กำลังติดตามอยู่ (ใช้กับแท็บ "ที่ติดตาม")
+export async function getFollowingIds(userId: string): Promise<string[]> {
+  const { data, error } = await db()
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', userId);
+  if (error || !data) return [];
+  return (data as { following_id: string }[]).map((r) => r.following_id);
 }
 
 export async function getFeed(params: FeedParams): Promise<Post[]> {
@@ -306,6 +429,14 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       .from('posts')
       .select('*')
       .eq('is_hidden', false);
+
+    // U11: แท็บ "ที่ติดตาม" แสดงเฉพาะโพสต์ของคนที่เราติดตามอยู่
+    if (params.scope === 'following') {
+      if (!me) return [];
+      const followingIds = await getFollowingIds(me.id);
+      if (followingIds.length === 0) return [];
+      query = query.in('author_id', followingIds);
+    }
 
     if (params.tag) {
       query = query.eq('tag', params.tag);
@@ -326,6 +457,21 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       }
     }
 
+    if (params.scope === 'bookmarks') {
+      if (!me) return [];
+      const { data: marks, error: marksError } = await db()
+        .from('bookmarks')
+        .select('post_id')
+        .eq('user_id', me.id);
+      if (marksError) {
+        console.error('[feed] saved posts lookup failed', marksError);
+        return [];
+      }
+      const ids = ((marks ?? []) as Array<{ post_id: string }>).map((m) => m.post_id);
+      if (ids.length === 0) return [];
+      query = query.in('id', ids);
+    }
+
     if (params.sort === 'top') {
       query = query
         .order('is_pinned', { ascending: false })
@@ -341,13 +487,132 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
     const to = from + Math.max(1, params.limit) - 1;
     const { data, error } = await query.range(from, to);
 
-    if (error || !data) return [];
+    if (error) {
+      console.error('getFeed query error:', error);
+      return [];
+    }
+
+    if (!data) {
+      console.error('getFeed returned no data');
+      return [];
+    }
 
     const visibleRows = (data as RawPostRow[]).filter(
       (r) => r.visibility === 'public' || (me && r.author_id === me.id),
     );
 
     return hydratePosts(visibleRows);
+  } catch (error) {
+    console.error('getFeed unexpected error:', error);
+    return [];
+  }
+}
+
+export async function searchPosts(
+  searchTerm: string,
+  limit = 20,
+): Promise<Post[]> {
+  try {
+    const term = searchTerm.trim();
+
+    if (!term) return [];
+
+    const me = await getMe();
+    const pattern = `%${term}%`;
+    const maxResults = Math.max(1, Math.min(limit, 50));
+
+    
+    const [postResult, attachmentResult] = await Promise.all([
+      db()
+        .from('posts')
+        .select('*')
+        .eq('is_hidden', false)
+        .or(`title.ilike.${pattern},body.ilike.${pattern}`)
+        .limit(maxResults),
+
+      
+      db()
+        .from('post_attachments')
+        .select('post_id')
+        .ilike('file_name', pattern)
+        .limit(maxResults),
+    ]);
+
+    if (postResult.error || !postResult.data) return [];
+    if (attachmentResult.error) return [];
+
+    
+    const matchingIds = [
+      ...new Set([
+        ...postResult.data.map((post) => post.id),
+        ...(attachmentResult.data ?? []).map(
+          (attachment) => attachment.post_id,
+        ),
+      ]),
+    ];
+
+    if (matchingIds.length === 0) return [];
+
+    const { data, error } = await db()
+      .from('posts')
+      .select('*')
+      .in('id', matchingIds)
+      .eq('is_hidden', false)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(maxResults);
+
+    if (error || !data) return [];
+
+   
+    const visibleRows = (data as RawPostRow[]).filter(
+      (row) =>
+        row.visibility === 'public' ||
+        (me && row.author_id === me.id),
+    );
+
+  
+    return await hydratePosts(visibleRows);
+
+  } catch (error) {
+    console.error('[searchPosts] Search failed:', error);
+    return [];
+  }
+}
+
+
+export async function searchPeople(
+  searchTerm: string,
+  limit = 10,
+): Promise<SuggestedUser[]> {
+  try {
+    const term = searchTerm.trim();
+
+    if (!term) return [];
+
+    const { data, error } = await db()
+      .from('profiles')
+      .select(
+        'id, username, display_name, avatar_url, role, role_override, faculty_name, entry_year_be, is_suspended',
+      )
+      .eq('is_suspended', false)
+      .or(
+        `username.ilike.%${term}%,display_name.ilike.%${term}%`,
+      )
+      .order('display_name', { ascending: true })
+      .limit(Math.max(1, Math.min(limit, 20)));
+
+    if (error || !data) return [];
+
+    return data.map((u) => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name,
+      avatar_url: u.avatar_url,
+      role: u.role_override ?? u.role,
+      faculty_name: u.faculty_name,
+      study_year: studyYear(u.entry_year_be),
+    }));
   } catch {
     return [];
   }
@@ -369,7 +634,14 @@ export async function getUserProfileAndPosts(
   const p = userRow as Record<string, unknown>;
   const userId = String(p.id);
   const isMe = Boolean(me && me.id === userId);
-  const role = ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student');
+  const studentId = p.student_id ? String(p.student_id) : null;
+  const allowlisted = await allowlistedAdmins(studentId ? [studentId] : []);
+  const role = resolveRole(
+    p.role as UserRole | null,
+    p.role_override as UserRole | null,
+    studentId,
+    allowlisted,
+  );
 
   const { data: postRows } = await db()
     .from('posts')
@@ -389,7 +661,7 @@ export async function getUserProfileAndPosts(
     db().from('follows').select('id', { count: 'exact', head: true }).eq('following_id', userId),
     db().from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', userId),
   ]);
-  
+
   const followerCount = followersRes.count ?? 0;
   const followingCount = followingRes.count ?? 0;
 
@@ -401,7 +673,7 @@ export async function getUserProfileAndPosts(
       .eq('follower_id', me.id)
       .eq('following_id', userId)
       .maybeSingle();
-    
+
     isFollowing = Boolean(followRow);
   }
 
@@ -466,4 +738,214 @@ export async function getSuggestedUsers(meId: string, limit: number): Promise<Su
     faculty_name: u.faculty_name,
     study_year: studyYear(u.entry_year_be),
   }));
+}
+interface RawReportRow {
+  id: string;
+  reporter_id: string;
+  post_id: string | null;
+  post_excerpt: string | null;
+  reason: ReportReason;
+  detail: string | null;
+  status: ReportStatus;
+  action: ReportAction | null;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+// U8/Task43: คิวรายงานสำหรับแอดมิน กรองตามหมวด/สถานะ/คำค้น เรียงลำดับ และแบ่งหน้า
+// DB error จะ throw เพื่อให้ผู้เรียกแยกออกจาก "ไม่พบรายการ" ได้
+export async function getReports(filters: ReportFilters): Promise<ReportPage> {
+  const pageSize = REPORT_PAGE_SIZE;
+  const me = await getMe();
+  if (!me || me.role !== 'admin') return { reports: [], total: 0, page: 1, pageSize };
+
+  // ตัดอักขระที่มีความหมายใน .or() และ wildcard ของ ilike
+  const term = filters.q.replace(/[,()%*\\"]/g, '').trim();
+  const selectFiltered = (columns: string, options?: { count: 'exact'; head: true }) => {
+    let query = db().from('reports').select(columns, options);
+    if (filters.reason !== 'all') query = query.eq('reason', filters.reason);
+    if (filters.status !== 'all') query = query.eq('status', filters.status);
+    if (term) query = query.or(`detail.ilike."%${term}%",post_excerpt.ilike."%${term}%"`);
+    return query;
+  };
+
+  // นับก่อนเพื่อ clamp หน้า เพราะ .range เกินจำนวนจริงจะได้ 416
+  const { count, error: countError } = await selectFiltered('id', { count: 'exact', head: true });
+  if (countError) throw new Error(`getReports count failed: ${countError.message}`);
+  const total = count ?? 0;
+  if (!total) return { reports: [], total: 0, page: 1, pageSize };
+
+  const page = Math.min(filters.page, Math.ceil(total / pageSize));
+  const from = (page - 1) * pageSize;
+  const ascending = filters.sort === 'oldest';
+  const { data, error } = await selectFiltered('*')
+    .order('created_at', { ascending })
+    .order('id', { ascending })
+    .range(from, from + pageSize - 1);
+  if (error || !data) throw new Error(`getReports failed: ${error?.message ?? 'no data'}`);
+  const rows = data as unknown as RawReportRow[];
+
+  const postIds = Array.from(new Set(rows.map((r) => r.post_id).filter((id): id is string => Boolean(id))));
+  const reporterIds = Array.from(new Set(rows.map((r) => r.reporter_id)));
+
+  const [{ data: postRows }, { data: reporterRows }] = await Promise.all([
+    postIds.length
+      ? db().from('posts').select('*').in('id', postIds)
+      : Promise.resolve({ data: [] as RawPostRow[] }),
+    db()
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, role, role_override, faculty_name, entry_year_be')
+      .in('id', reporterIds),
+  ]);
+
+  // แอดมินต้องเห็นโพสต์ที่ถูกซ่อนด้วย จึงไม่กรอง is_hidden ตรงนี้
+  const rawPosts = (postRows ?? []) as RawPostRow[];
+  const hiddenIds = new Set(rawPosts.filter((p) => p.is_hidden).map((p) => p.id));
+  const postMap = new Map((await hydratePosts(rawPosts)).map((p) => [p.id, p]));
+
+  const reporterMap = new Map<string, PersonCard>();
+  for (const u of (reporterRows ?? []) as Array<Record<string, unknown>>) {
+    reporterMap.set(String(u.id), {
+      id: String(u.id),
+      username: String(u.username ?? 'user'),
+      display_name: String(u.display_name ?? 'ผู้ใช้'),
+      avatar_url: (u.avatar_url as string | null) ?? null,
+      role: ((u.role_override as UserRole | null) ?? (u.role as UserRole) ?? 'student'),
+      faculty_name: (u.faculty_name as string | null) ?? null,
+      study_year: studyYear((u.entry_year_be as number | null) ?? null),
+    });
+  }
+
+  const reports = rows.map((r) => ({
+    id: r.id,
+    reason: r.reason,
+    detail: r.detail,
+    status: r.status,
+    action: r.action,
+    resolution_note: r.resolution_note,
+    resolved_at: r.resolved_at,
+    created_at: r.created_at,
+    post_id: r.post_id,
+    post_excerpt: r.post_excerpt,
+    post_hidden: r.post_id ? hiddenIds.has(r.post_id) : false,
+    post: r.post_id ? (postMap.get(r.post_id) ?? null) : null,
+    reporter: reporterMap.get(r.reporter_id) ?? null,
+  }));
+
+  return { reports, total, page, pageSize };
+}
+
+export async function getPendingReportCount(): Promise<number> {
+  const { count, error } = await db()
+    .from('reports')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending');
+  return error ? 0 : (count ?? 0);
+}
+
+export interface MyStudySession extends StudySession {
+  members: StudySignup[];
+}
+
+// U14: หน้า "นัดติวของฉัน" นัดที่ฉันสร้าง (พร้อมรายชื่อผู้ขอ) และนัดที่ฉันขอเข้าร่วม
+export async function getMyStudySessions(): Promise<{ owned: MyStudySession[]; joined: MyStudySession[] }> {
+  const userId = await currentUserId();
+  if (!userId) return { owned: [], joined: [] };
+
+  const [{ data: ownedRows }, { data: myRows }] = await Promise.all([
+    db()
+      .from('posts')
+      .select('*')
+      .eq('author_id', userId)
+      .eq('tag', 'studybuddy')
+      .eq('is_hidden', false)
+      .order('meet_at', { ascending: false, nullsFirst: false })
+      .limit(50),
+    db().from('study_members').select('post_id').eq('user_id', userId).limit(100),
+  ]);
+
+  const joinedIds = ((myRows ?? []) as Array<{ post_id: string }>).map((r) => r.post_id);
+  const { data: joinedRows } = joinedIds.length
+    ? await db()
+        .from('posts')
+        .select('*')
+        .in('id', joinedIds)
+        .eq('is_hidden', false)
+        .order('meet_at', { ascending: false, nullsFirst: false })
+    : { data: [] };
+
+  const owned = (ownedRows ?? []) as RawPostRow[];
+  const joined = (joinedRows ?? []) as RawPostRow[];
+  const all = [...owned, ...joined];
+  if (!all.length) return { owned: [], joined: [] };
+
+  const members = await getStudyMembers(all.map((r) => r.id));
+  const memberIds = owned.flatMap((r) => (members.get(r.id) ?? []).map((m) => m.user_id));
+  const peopleIds = Array.from(new Set([...all.map((r) => r.author_id), ...memberIds]));
+
+  const [subjects, { data: peopleRows }] = await Promise.all([
+    getSubjects(),
+    db()
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, role, role_override, faculty_name, entry_year_be, stars')
+      .in('id', peopleIds),
+  ]);
+  const subjectMap = new Map(subjects.map((s) => [s.code, s.name_th]));
+  const people = new Map<string, StudySignup['user']>();
+  for (const p of (peopleRows ?? []) as Array<Record<string, unknown>>) {
+    people.set(String(p.id), {
+      id: String(p.id),
+      username: String(p.username ?? 'user'),
+      display_name: String(p.display_name ?? 'นักศึกษา มธ.'),
+      avatar_url: (p.avatar_url as string | null) ?? null,
+      role: ((p.role_override as UserRole | null) ?? (p.role as UserRole) ?? 'student'),
+      study_year: studyYear((p.entry_year_be as number | null) ?? null),
+      faculty_name: (p.faculty_name as string | null) ?? null,
+      stars: Number(p.stars ?? 0),
+    });
+  }
+
+  const now = Date.now();
+  const toSession = (r: RawPostRow): MyStudySession => {
+    const list = members.get(r.id) ?? [];
+    const summary = studySummary(list, userId);
+    const author = people.get(r.author_id) ?? {
+      id: r.author_id, username: 'user', display_name: 'นักศึกษา มธ.', avatar_url: null,
+      role: 'student' as UserRole, study_year: null, faculty_name: null, stars: 0,
+    };
+    const isOwner = r.author_id === userId;
+    return {
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      subject_code: r.subject_code,
+      subject_name: r.subject_code ? (subjectMap.get(r.subject_code) ?? null) : null,
+      meet_at: r.meet_at,
+      meet_place: r.meet_place,
+      capacity: r.capacity,
+      requires_approval: Boolean(r.requires_approval),
+      ended_at: r.ended_at,
+      is_ended: Boolean(r.ended_at),
+      chat_expires_at: r.chat_expires_at,
+      is_owner: isOwner,
+      my_status: summary.my_signup_status,
+      signup_count: summary.signup_count,
+      pending_count: summary.pending_count,
+      conversation_id: r.conversation_id,
+      is_past: r.meet_at ? new Date(r.meet_at).getTime() < now : false,
+      author,
+      members: isOwner
+        ? list.map((m) => ({
+            user_id: m.user_id,
+            status: m.status,
+            created_at: m.created_at,
+            decided_at: m.decided_at,
+            user: people.get(m.user_id) ?? { ...author, id: m.user_id, username: 'user', display_name: 'นักศึกษา มธ.', avatar_url: null },
+          }))
+        : [],
+    };
+  };
+
+  return { owned: owned.map(toSession), joined: joined.map(toSession) };
 }

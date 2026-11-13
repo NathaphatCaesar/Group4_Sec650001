@@ -117,6 +117,7 @@ on conflict (id) do update set
 -- เพิ่มคอลัมน์ stars และ bio ให้กับตาราง profiles
 alter table profiles add column if not exists stars int not null default 0;
 alter table profiles add column if not exists bio text;
+alter table profiles add column if not exists username_changed_at timestamptz;
 
 create table if not exists subjects (
   code        text primary key,
@@ -283,5 +284,262 @@ create table if not exists star_events (
 create index if not exists star_events_user_idx on star_events(user_id, created_at desc);
 alter table star_events enable row level security;
 revoke all on table star_events from anon, authenticated;
+
+-- U7/U8: ตารางรายงานเนื้อหาไม่เหมาะสม (reports) และคิวตรวจของแอดมิน
+create table if not exists reports (
+  id               uuid primary key default gen_random_uuid(),
+  reporter_id      uuid not null references profiles(id) on delete cascade,
+  post_id          uuid references posts(id) on delete set null,
+  post_author_id   uuid references profiles(id) on delete set null,
+  post_excerpt     text,
+  reason           text not null check (reason in ('wrong_info', 'copyright', 'spam', 'inappropriate', 'privacy')),
+  detail           text check (detail is null or char_length(detail) <= 500),
+  status           text not null default 'pending' check (status in ('pending', 'actioned', 'dismissed')),
+  action           text check (action in ('hide', 'delete', 'dismiss')),
+  resolution_note  text check (resolution_note is null or char_length(resolution_note) <= 500),
+  resolved_by      uuid references profiles(id) on delete set null,
+  resolved_at      timestamptz,
+  created_at       timestamptz not null default now()
+);
+
+-- รายงานโพสต์เดิมซ้ำไม่ได้ ระหว่างที่เคสเดิมยังรอตรวจ
+create unique index if not exists reports_one_pending_idx
+  on reports(reporter_id, post_id) where status = 'pending';
+create index if not exists reports_status_idx on reports(status, created_at desc);
+create index if not exists reports_post_idx   on reports(post_id);
+
+alter table reports enable row level security;
+revoke all on table reports from anon, authenticated;
+
+create or replace function public.update_profile_edit(
+  p_user_id uuid,
+  p_display_name text,
+  p_username text,
+  p_bio text,
+  p_avatar_url text,
+  p_update_avatar boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  current_profile profiles%rowtype;
+begin
+  select * into current_profile
+  from profiles
+  where id = p_user_id
+  for update;
+
+  if not found then
+    raise exception using message = 'profile_not_found';
+  end if;
+  if current_profile.is_suspended then
+    raise exception using message = 'profile_suspended';
+  end if;
+  if char_length(btrim(coalesce(p_display_name, ''))) not between 1 and 40 then
+    raise exception using message = 'invalid_display_name';
+  end if;
+  if coalesce(p_username, '') !~ '^[a-z0-9._]{3,30}$' then
+    raise exception using message = 'invalid_username';
+  end if;
+  if p_bio is not null and char_length(p_bio) > 300 then
+    raise exception using message = 'invalid_bio';
+  end if;
+  if p_username <> current_profile.username
+    and current_profile.username_changed_at > clock_timestamp() - interval '15 days'
+  then
+    raise exception using message = 'username_cooldown';
+  end if;
+
+  update profiles
+  set display_name = btrim(p_display_name),
+      username = p_username,
+      username_changed_at = case
+        when p_username <> current_profile.username then clock_timestamp()
+        else current_profile.username_changed_at
+      end,
+      bio = p_bio,
+      avatar_url = case when p_update_avatar then p_avatar_url else avatar_url end
+  where id = p_user_id
+  returning * into current_profile;
+
+  return jsonb_build_object(
+    'username', current_profile.username,
+    'display_name', current_profile.display_name,
+    'bio', current_profile.bio,
+    'avatar_url', current_profile.avatar_url,
+    'username_changed_at', current_profile.username_changed_at
+  );
+end;
+$$;
+
+revoke all on function public.update_profile_edit(uuid, text, text, text, text, boolean)
+  from public, anon, authenticated;
+grant execute on function public.update_profile_edit(uuid, text, text, text, text, boolean)
+  to service_role;
+
+-- U13: ตารางบันทึกโพสต์ (bookmarks) — ผู้ใช้หนึ่งคนบันทึกโพสต์เดียวกันได้ครั้งเดียว
+create table if not exists bookmarks (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references profiles(id) on delete cascade,
+  post_id     uuid not null references posts(id) on delete cascade,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists bookmarks_user_idx on bookmarks(user_id, created_at desc);
+create index if not exists bookmarks_post_idx on bookmarks(post_id);
+create unique index if not exists bookmarks_user_post_uidx on bookmarks(user_id, post_id);
+alter table bookmarks enable row level security;
+revoke all on table bookmarks from anon, authenticated;
+
+-- U14: สมาชิกนัดติว (study_members) ขอเข้าร่วม / อนุมัติ / ปฏิเสธ พร้อมตรวจจำนวนที่นั่ง
+-- นัดติวคือโพสต์แท็ก studybuddy; posts.capacity = จำนวนที่นั่ง (null = ไม่จำกัด, ไม่นับเจ้าของ)
+create table if not exists study_members (
+  post_id     uuid not null references posts(id) on delete cascade,
+  user_id     uuid not null references profiles(id) on delete cascade,
+  status      text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  decided_by  uuid references profiles(id) on delete set null,
+  decided_at  timestamptz,
+  created_at  timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create index if not exists study_members_post_status_idx on study_members(post_id, status);
+create index if not exists study_members_user_idx        on study_members(user_id, created_at desc);
+
+alter table study_members enable row level security;
+revoke all on table study_members from anon, authenticated;
+
+-- ที่นั่งต้องมีอย่างน้อย 1 ถ้าระบุ
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'posts_capacity_positive') then
+    alter table posts add constraint posts_capacity_positive check (capacity is null or capacity > 0);
+  end if;
+end;
+$$;
+
+-- ขอเข้าร่วมนัดติว: ล็อกแถวโพสต์ก่อนนับที่นั่ง กันสองคนกดพร้อมกันแล้วเกินจำนวน
+-- ถ้านัดติวไม่ต้องอนุมัติ จะได้สถานะ approved ทันที
+create or replace function public.study_request_join(p_post_id uuid, p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_post     posts%rowtype;
+  v_existing study_members%rowtype;
+  v_approved int;
+  v_status   text;
+begin
+  if exists (select 1 from profiles where id = p_user_id and is_suspended) then
+    raise exception using message = 'profile_suspended';
+  end if;
+
+  select * into v_post from posts where id = p_post_id for update;
+  if not found or v_post.tag <> 'studybuddy' or v_post.is_hidden then
+    raise exception using message = 'study_not_found';
+  end if;
+  if v_post.author_id = p_user_id then
+    raise exception using message = 'study_is_owner';
+  end if;
+  if v_post.ended_at is not null or (v_post.meet_at is not null and v_post.meet_at < now()) then
+    raise exception using message = 'study_closed';
+  end if;
+
+  select * into v_existing from study_members where post_id = p_post_id and user_id = p_user_id;
+  if found then
+    raise exception using message = case v_existing.status
+      when 'rejected' then 'request_rejected'
+      else 'already_requested'
+    end;
+  end if;
+
+  select count(*) into v_approved from study_members where post_id = p_post_id and status = 'approved';
+  if v_post.capacity is not null and v_approved >= v_post.capacity then
+    raise exception using message = 'seats_full';
+  end if;
+
+  v_status := case when v_post.requires_approval then 'pending' else 'approved' end;
+  insert into study_members (post_id, user_id, status, decided_at)
+  values (p_post_id, p_user_id, v_status, case when v_status = 'approved' then now() end);
+
+  return jsonb_build_object(
+    'status', v_status,
+    'owner_id', v_post.author_id,
+    'title', v_post.title,
+    'capacity', v_post.capacity,
+    'signup_count', v_approved + (case when v_status = 'approved' then 1 else 0 end)
+  );
+end;
+$$;
+
+-- เจ้าของนัดติวอนุมัติ / ปฏิเสธคำขอที่รออยู่ (อนุมัติต้องยังมีที่นั่งว่าง)
+create or replace function public.study_decide_request(
+  p_post_id uuid,
+  p_owner_id uuid,
+  p_user_id uuid,
+  p_approve boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_post     posts%rowtype;
+  v_member   study_members%rowtype;
+  v_approved int;
+  v_status   text := case when p_approve then 'approved' else 'rejected' end;
+begin
+  select * into v_post from posts where id = p_post_id for update;
+  if not found or v_post.tag <> 'studybuddy' then
+    raise exception using message = 'study_not_found';
+  end if;
+  if v_post.author_id <> p_owner_id then
+    raise exception using message = 'not_owner';
+  end if;
+
+  select * into v_member from study_members
+  where post_id = p_post_id and user_id = p_user_id
+  for update;
+  if not found then
+    raise exception using message = 'request_not_found';
+  end if;
+  if v_member.status <> 'pending' then
+    raise exception using message = 'request_not_pending';
+  end if;
+
+  select count(*) into v_approved from study_members where post_id = p_post_id and status = 'approved';
+  if p_approve then
+    if v_post.ended_at is not null or (v_post.meet_at is not null and v_post.meet_at < now()) then
+      raise exception using message = 'study_closed';
+    end if;
+    if v_post.capacity is not null and v_approved >= v_post.capacity then
+      raise exception using message = 'seats_full';
+    end if;
+    v_approved := v_approved + 1;
+  end if;
+
+  update study_members
+  set status = v_status, decided_by = p_owner_id, decided_at = now()
+  where post_id = p_post_id and user_id = p_user_id;
+
+  return jsonb_build_object(
+    'status', v_status,
+    'title', v_post.title,
+    'capacity', v_post.capacity,
+    'signup_count', v_approved
+  );
+end;
+$$;
+
+revoke all on function public.study_request_join(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.study_decide_request(uuid, uuid, uuid, boolean) from public, anon, authenticated;
+grant execute on function public.study_request_join(uuid, uuid) to service_role;
+grant execute on function public.study_decide_request(uuid, uuid, uuid, boolean) to service_role;
 
 notify pgrst, 'reload schema';

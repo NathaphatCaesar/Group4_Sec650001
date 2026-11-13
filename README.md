@@ -10,7 +10,7 @@
 1. ติดตั้ง Node.js 22+
 2. `npm install`
 3. รัน `docker compose run --rm setup` (หรือ `npm run setup`) แล้วใส่รหัสผ่าน
-4. เปิด Supabase SQL Editor แล้วรัน `database/init.sql` (และ `database/fix_profiles.sql`)
+4. เปิด Supabase SQL Editor แล้วรัน `database/init.sql` (และ `database/fix_profiles.sql`, `database/admin_allowlist.sql`, `database/self_post_likes.sql`)
 5. `npm run dev` แล้วเปิด http://localhost:3000
 
 ### รันด้วย Docker

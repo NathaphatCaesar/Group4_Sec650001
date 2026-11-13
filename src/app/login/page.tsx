@@ -13,7 +13,7 @@ export default async function LoginPage() {
   return (
     <main className="grid min-h-dvh lg:grid-cols-2">
       <section className="hidden flex-col justify-between bg-gradient-to-br from-brand-100 via-brand-50 to-amber-50 p-12 lg:flex">
-        <Logo size={72} />
+        <Logo height={64} />
         <div>
           <h1 className="text-4xl font-bold leading-tight">
             {t('เรียนด้วยกัน')}<br />{t('เติบโตไปด้วยกัน')}<br />
@@ -35,7 +35,7 @@ export default async function LoginPage() {
 
       <section className="grid place-items-center p-6">
         <div className="w-full max-w-sm">
-          <div className="mb-8 flex justify-center lg:hidden"><Logo size={96} /></div>
+          <div className="mb-8 flex justify-center lg:hidden"><Logo height={56} /></div>
           <h2 className="text-2xl font-bold">{t('เข้าสู่ระบบ')}</h2>
           <p className="mt-1 text-sm text-ink-soft">{t('ใช้บัญชี มธ. (TU Account) เดียวกับที่ล็อกอิน reg.tu.ac.th')}</p>
           <LoginForm />

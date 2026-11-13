@@ -265,3 +265,89 @@ export interface CloseFriendCandidate extends PersonCard {
 export interface FollowRequest extends PersonCard {
   created_at: string;
 }
+
+export type ReportReason = 'wrong_info' | 'copyright' | 'spam' | 'inappropriate' | 'privacy';
+export type ReportStatus = 'pending' | 'actioned' | 'dismissed';
+export type ReportAction = 'hide' | 'delete' | 'dismiss';
+
+export const REPORT_REASONS: Record<ReportReason, { label: string; short: string }> = {
+  wrong_info:    { label: 'ข้อมูลผิด / ทำให้เข้าใจผิด',     short: 'ข้อมูลผิด' },
+  copyright:     { label: 'ละเมิดลิขสิทธิ์ (ชีท/ข้อสอบ)',   short: 'ละเมิดลิขสิทธิ์' },
+  spam:          { label: 'สแปม / โฆษณา',                 short: 'สแปม' },
+  inappropriate: { label: 'เนื้อหาไม่เหมาะสม / คุกคาม',     short: 'ไม่เหมาะสม' },
+  privacy:       { label: 'เปิดเผยข้อมูลส่วนตัวผู้อื่น',      short: 'ข้อมูลส่วนตัว' },
+};
+
+export const REPORT_REASON_ORDER: ReportReason[] = ['inappropriate', 'spam', 'wrong_info', 'copyright', 'privacy'];
+
+export const REPORT_DETAIL_MAX = 500;
+
+export interface ReportItem {
+  id: string;
+  reason: ReportReason;
+  detail: string | null;
+  status: ReportStatus;
+  action: ReportAction | null;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  post_id: string | null;
+  post_excerpt: string | null;
+
+  post_hidden: boolean;
+  post: Post | null;
+  reporter: PersonCard | null;
+}
+
+export const REPORT_PAGE_SIZE = 20;
+export const REPORT_SEARCH_MAX = 100;
+
+export type ReportStatusFilter = ReportStatus | 'all';
+export type ReportSort = 'newest' | 'oldest';
+
+export interface ReportFilters {
+  reason: ReportReason | 'all';
+  status: ReportStatusFilter;
+  q: string;
+  sort: ReportSort;
+  page: number;
+}
+
+export const DEFAULT_REPORT_FILTERS: ReportFilters = { reason: 'all', status: 'pending', q: '', sort: 'oldest', page: 1 };
+
+export interface ReportPage {
+  reports: ReportItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+// Task43: แปลง query string เป็นตัวกรอง คืน null ถ้ามีค่าไม่ถูกต้อง
+// ไม่ระบุ sort: เคสรอตรวจเรียงเก่าไปใหม่ (ทำตามคิว) นอกนั้นเรียงใหม่ไปเก่า
+export function parseReportFilters(params: URLSearchParams): ReportFilters | null {
+  const reason = params.get('reason') || 'all';
+  if (reason !== 'all' && !REPORT_REASON_ORDER.includes(reason as ReportReason)) return null;
+
+  const status = params.get('status') || 'all';
+  if (!['all', 'pending', 'actioned', 'dismissed'].includes(status)) return null;
+
+  const sort = params.get('sort') || (status === 'pending' ? 'oldest' : 'newest');
+  if (sort !== 'newest' && sort !== 'oldest') return null;
+
+  const q = (params.get('q') ?? '').trim();
+  if (q.length > REPORT_SEARCH_MAX) return null;
+
+  const rawPage = params.get('page') || '1';
+  const page = /^\d+$/.test(rawPage) ? Number(rawPage) : 0;
+  if (page < 1 || !Number.isSafeInteger(page)) return null;
+
+  return { reason: reason as ReportFilters['reason'], status: status as ReportStatusFilter, q, sort, page };
+}
+
+export function reportFiltersToQuery(filters: ReportFilters): URLSearchParams {
+  const params = new URLSearchParams({ status: filters.status, sort: filters.sort });
+  if (filters.reason !== 'all') params.set('reason', filters.reason);
+  if (filters.q) params.set('q', filters.q);
+  if (filters.page > 1) params.set('page', String(filters.page));
+  return params;
+}
