@@ -507,6 +507,7 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
     return [];
   }
 }
+
 export async function searchPosts(
   searchTerm: string,
   limit = 20,
@@ -517,34 +518,69 @@ export async function searchPosts(
     if (!term) return [];
 
     const me = await getMe();
+    const pattern = `%${term}%`;
+    const maxResults = Math.max(1, Math.min(limit, 50));
 
-    // Search post titles and body text.
-    let query = db()
+    
+    const [postResult, attachmentResult] = await Promise.all([
+      db()
+        .from('posts')
+        .select('*')
+        .eq('is_hidden', false)
+        .or(`title.ilike.${pattern},body.ilike.${pattern}`)
+        .limit(maxResults),
+
+      
+      db()
+        .from('post_attachments')
+        .select('post_id')
+        .ilike('file_name', pattern)
+        .limit(maxResults),
+    ]);
+
+    if (postResult.error || !postResult.data) return [];
+    if (attachmentResult.error) return [];
+
+    
+    const matchingIds = [
+      ...new Set([
+        ...postResult.data.map((post) => post.id),
+        ...(attachmentResult.data ?? []).map(
+          (attachment) => attachment.post_id,
+        ),
+      ]),
+    ];
+
+    if (matchingIds.length === 0) return [];
+
+
+    const { data, error } = await db()
       .from('posts')
       .select('*')
+      .in('id', matchingIds)
       .eq('is_hidden', false)
-      .or(`title.ilike.%${term}%,body.ilike.%${term}%`)
       .order('is_pinned', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(Math.max(1, Math.min(limit, 50)));
-
-    const { data, error } = await query;
+      .limit(maxResults);
 
     if (error || !data) return [];
 
-    // Only show public posts or the current user's own posts.
+   
     const visibleRows = (data as RawPostRow[]).filter(
       (row) =>
         row.visibility === 'public' ||
         (me && row.author_id === me.id),
     );
 
+  
     return await hydratePosts(visibleRows);
 
-  } catch {
+  } catch (error) {
+    console.error('[searchPosts] Search failed:', error);
     return [];
   }
 }
+
 
 export async function searchPeople(
   searchTerm: string,

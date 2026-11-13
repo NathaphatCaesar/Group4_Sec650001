@@ -193,20 +193,20 @@ export default async function SearchPage({
         className="flex flex-wrap items-center gap-2"
         aria-label="หมวดหมู่การค้นหา"
       >
+
         {categories.map((category) => (
           <Link
             key={category.tag}
             href={{
               pathname: '/search',
-              query: {
-                ...(query ? { q: query } : {}),
-                ...(category.tag === 'courses' || category.tag === 'faculties'
+              query:
+                category.tag === 'courses' || category.tag === 'faculties'
                   ? { type: category.tag }
                   : category.tag !== 'all'
                     ? { tag: category.tag }
-                    : {}),
-              },
+                    : {},
             }}
+
             className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium transition ${(
               category.tag === 'all'
                 ? selectedType === 'all' && !selectedTag
