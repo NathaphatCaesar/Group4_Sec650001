@@ -22,7 +22,8 @@ export async function reportPost(
   const me = await getMe();
   if (!me) return { ok: false, error: 'ยังไม่ได้ล็อกอิน' };
 
-  if (!reason || !(reason in REPORT_REASONS)) {
+  // ใช้ Object.hasOwn แทน `in` เพราะ `in` นับ property ที่สืบทอดจาก Object ด้วย (เช่น "constructor")
+  if (!reason || !Object.hasOwn(REPORT_REASONS, reason)) {
     return { ok: false, error: 'กรุณาเลือกเหตุผลก่อนส่งรายงาน' };
   }
 
