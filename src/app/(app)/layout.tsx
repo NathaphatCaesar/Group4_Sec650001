@@ -5,6 +5,7 @@ import { Bell } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { SideNav, MobileNav, type NavItem } from '@/components/NavLinks';
 import { SearchBox } from '@/components/SearchBox';
+import { NavTracker } from '@/components/BackButton';
 import { UserMenu } from '@/components/UserMenu';
 import { ComposerModal, ComposeButton } from '@/components/Composer';
 import { AccentStyle } from '@/components/AccentStyle';
@@ -88,6 +89,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
 
       <MobileNav items={mobileNav} />
+      <NavTracker />
       <ComposerModal me={me} subjects={subjects} />
     </div>
   );

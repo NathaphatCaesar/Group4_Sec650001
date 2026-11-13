@@ -186,6 +186,12 @@ function notificationHref(item: NotificationRow): string | null {
     return `/u/${item.actor.username}`;
   }
   if (item.type === 'message' && item.post_id) return `/study/${item.post_id}`;
+  if (
+    item.post_id &&
+    (item.type === 'like' || item.type === 'comment' || item.type === 'reply' || item.type === 'mention' || item.type === 'answer_accepted')
+  ) {
+    return `/posts/${item.post_id}`;
+  }
   return null;
 }
 

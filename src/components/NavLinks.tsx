@@ -69,14 +69,15 @@ export function MobileNav({ items }: { items: NavItem[] }) {
                 type="button"
                 onClick={() => openComposer()}
                 aria-label={t('สร้างโพสต์')}
-                className="flex flex-1 flex-col items-center justify-start pt-1.5"
+                className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold text-[color:var(--color-jade-600)]"
               >
-                <span className="grid h-11 w-11 -translate-y-3 place-items-center rounded-2xl bg-[color:var(--color-jade-500)] text-white shadow-[0_6px_16px_-4px_rgb(18_165_148/0.6)] transition-transform active:scale-95">
-                  <Plus size={23} strokeWidth={2.6} />
+                {/* ช่องสูงเท่าไอคอนอื่น ปุ่มลอยขึ้นด้านบน ป้ายชื่อจึงอยู่ระดับเดียวกับเมนูอื่น */}
+                <span className="relative h-[21px] w-10">
+                  <span className="absolute bottom-0 left-0 grid h-10 w-10 place-items-center rounded-2xl bg-[color:var(--color-jade-500)] text-white shadow-[0_6px_16px_-4px_rgb(18_165_148/0.6)] transition-transform active:scale-95">
+                    <Plus size={22} strokeWidth={2.6} />
+                  </span>
                 </span>
-                <span className="-mt-2 text-[10px] font-semibold text-[color:var(--color-jade-600)]">
-                  {t(item.label)}
-                </span>
+                {t(item.label)}
               </button>
             );
           }

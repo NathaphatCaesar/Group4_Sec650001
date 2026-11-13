@@ -38,7 +38,7 @@ export default async function SettingsPage() {
             <dt className="shrink-0">{t('ชื่อจริงในระบบ มธ.')}</dt>
             <dd className="min-w-0 flex-1 font-medium text-ink">
               {me.real_name ?? t('ไม่มี')}
-              <span className="ml-1.5 inline-flex items-center gap-1 font-normal text-ink-soft">
+              <span className="mt-0.5 flex items-center gap-1 font-normal text-ink-soft">
                 <Lock size={11} /> {t('เห็นเฉพาะคุณกับแอดมิน')}
               </span>
             </dd>
