@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import clsx from 'clsx';
 import { SlidersHorizontal, X, Search, Check } from 'lucide-react';
@@ -116,14 +117,15 @@ export function FeedToolbar({ subjects, faculties }: { subjects: Subject[]; facu
         </div>
       ) : null}
 
-      {open ? (
+      {open ? createPortal(
         <FilterSheet
           initial={current}
           subjects={subjects}
           faculties={faculties}
           onApply={apply}
           onClose={() => setOpen(false)}
-        />
+        />,
+        document.body,
       ) : null}
     </div>
   );
