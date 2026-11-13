@@ -32,6 +32,7 @@ export const EN: Record<string, string> = {
   'หน้าฟีด': 'Feed',
   'ค้นหา': 'Search',
   'การแจ้งเตือน': 'Notifications',
+  'แจ้งเตือน': 'Alerts',
   'นัดติว': 'Study meetups',
   'นัดติวของฉัน': 'My study meetups',
   'โปรไฟล์': 'Profile',

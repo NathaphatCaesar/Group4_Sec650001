@@ -40,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/', label: 'หน้าฟีด', icon: 'Home' },
     { href: '/study', label: 'นัดติว', icon: 'CalendarClock' },
     { action: 'compose', label: 'โพสต์', icon: 'Plus' },
+    { href: '/notifications', label: 'แจ้งเตือน', icon: 'Bell', badge: unreadNotifications },
     { href: `/u/${me.username}`, label: 'โปรไฟล์', icon: 'User' },
   ];
 
