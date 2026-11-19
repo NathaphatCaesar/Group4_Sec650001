@@ -1,5 +1,6 @@
 'use client';
 
+import { TimeAgo } from '@/components/TimeAgo';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { createClient } from '@supabase/supabase-js';
@@ -157,7 +158,7 @@ export function StudyChat({
                         {m.body}
                       </p>
                     ) : null}
-                    <span className="px-1 text-[10px] text-ink-soft">{timeAgo(m.created_at, locale)}</span>
+                    <span className="px-1 text-[10px] text-ink-soft"><TimeAgo date={m.created_at} /></span>
                   </div>
                 </li>
               );

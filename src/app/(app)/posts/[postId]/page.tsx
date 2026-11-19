@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getMe } from '@/lib/data';
+import { db } from '@/lib/supabase';
 import { getT } from '@/lib/i18n/server';
 import { BackButton } from '@/components/BackButton';
 import CommentsSection from './CommentsSection';
@@ -15,6 +16,18 @@ export default async function PostCommentsPage({
 
   if (!me) notFound();
 
+  const { data: post } = await db()
+    .from('posts')
+    .select('author_id, tag, accepted_comment_id')
+    .eq('id', postId)
+    .maybeSingle();
+  const qa = post?.tag === 'qa'
+    ? {
+        isOwner: post.author_id === me.id,
+        acceptedId: post.accepted_comment_id != null ? String(post.accepted_comment_id) : null,
+      }
+    : null;
+
   return (
     <div className="mx-auto flex w-full max-w-[680px] flex-col gap-3">
       <section className="card flex items-center gap-2 px-3 py-3">
@@ -27,7 +40,7 @@ export default async function PostCommentsPage({
         </div>
       </section>
 
-      <CommentsSection postId={postId} meId={me.id} isAdmin={me.role === 'admin'} />
+      <CommentsSection postId={postId} meId={me.id} isAdmin={me.role === 'admin'} qa={qa} />
     </div>
   );
 }

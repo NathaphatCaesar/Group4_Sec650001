@@ -1,5 +1,6 @@
 'use client';
 
+import { TimeAgo } from '@/components/TimeAgo';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
@@ -16,6 +17,7 @@ import type { Post } from '@/lib/types';
 import { deletePost } from '@/actions/posts';
 import { ReportDialog } from '@/components/ReportDialog';
 import { StudyJoinButton } from '@/components/StudyJoinButton';
+import { PollView } from '@/components/PollView';
 import { useT, useLocale } from '@/lib/i18n/client';
 
 function downloadUrl(url: string, name: string) {
@@ -50,9 +52,7 @@ export function PostCard({
   const isMine = meId === post.author.id;
   const canDelete = isMine || isAdmin;
   const canReport = Boolean(meId) && !isMine;
-  const announceDays = post.announce_until
-    ? Math.max(1, Math.ceil((new Date(post.announce_until).getTime() - Date.now()) / 86_400_000))
-    : 0;
+  const announceDays = post.announce_days_left;
   const images = post.attachments.filter((a) => a.kind === 'image');
   const files = post.attachments.filter((a) => a.kind === 'file');
   const notReady = t('ยังไม่เปิดใช้งาน');
@@ -164,7 +164,7 @@ export function PostCard({
               {post.author.display_name}
             </Link>
             <span className="hidden truncate text-xs text-ink-soft sm:inline">@{post.author.username}</span>
-            <span className="text-xs text-ink-soft">· {timeAgo(post.created_at, locale)}</span>
+            <span className="text-xs text-ink-soft">· <TimeAgo date={post.created_at} /></span>
           </div>
           <RoleBadge
             role={post.author.role}
@@ -242,6 +242,11 @@ export function PostCard({
       <div className="px-5 pb-1 pt-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <TagChip tag={post.tag} />
+          {post.tag === 'qa' && post.accepted_comment_id != null ? (
+            <span className="chip bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              ✓ {t('มีคำตอบแล้ว')}
+            </span>
+          ) : null}
           {post.subject_code ? (
             <span className="chip bg-[color:var(--color-canvas)] px-2.5 py-1 text-xs text-ink-soft">
               {post.subject_code}{post.subject_name ? ` · ${post.subject_name}` : ''}
@@ -294,6 +299,8 @@ export function PostCard({
             </div>
           </div>
         ) : null}
+
+        {post.poll ? <PollView postId={post.id} poll={post.poll} canVote={Boolean(meId)} /> : null}
 
         {files.length ? (
           <ul className="mt-3 flex flex-col gap-2">

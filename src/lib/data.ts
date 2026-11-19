@@ -11,6 +11,7 @@ import type {
   Faculty,
   FeedScope,
   FeedSort,
+  Poll,
   Post,
   PostTag,
   PersonCard,
@@ -269,6 +270,40 @@ function studySummary(members: StudyMemberRow[] | undefined, userId: string | nu
   };
 }
 
+export async function getPolls(postIds: string[], userId: string | null): Promise<Map<string, Poll>> {
+  const map = new Map<string, Poll>();
+  if (!postIds.length) return map;
+  const [{ data: opts, error: optErr }, { data: votes, error: voteErr }] = await Promise.all([
+    db().from('poll_options').select('id, post_id, label, sort_order').in('post_id', postIds)
+      .order('sort_order', { ascending: true }),
+    db().from('poll_votes').select('post_id, user_id, option_id').in('post_id', postIds),
+  ]);
+  if (optErr || voteErr) {
+    console.error('[poll] lookup failed', optErr ?? voteErr);
+    return map;
+  }
+  const counts = new Map<string, number>();
+  const mine = new Map<string, string>();
+  for (const v of (votes ?? []) as Array<{ post_id: string; user_id: string; option_id: string }>) {
+    counts.set(v.option_id, (counts.get(v.option_id) ?? 0) + 1);
+    if (userId && v.user_id === userId) mine.set(v.post_id, v.option_id);
+  }
+  for (const o of (opts ?? []) as Array<{ id: string; post_id: string; label: string }>) {
+    const poll = map.get(o.post_id) ?? { total: 0, my_option: mine.get(o.post_id) ?? null, options: [] };
+    const n = counts.get(o.id) ?? 0;
+    poll.options.push({ id: o.id, label: o.label, votes: n });
+    poll.total += n;
+    map.set(o.post_id, poll);
+  }
+  return map;
+}
+
+function announceDaysLeft(until: string | null): number {
+  if (!until) return 0;
+  const ms = new Date(until).getTime() - Date.now();
+  return ms > 0 ? Math.ceil(ms / 86_400_000) : 0;
+}
+
 async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   if (!rows.length) return [];
 
@@ -304,6 +339,8 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
   const bookmarkedIds = new Set(
     ((bookmarkResult.data ?? []) as Array<{ post_id: string }>).map((b) => b.post_id),
   );
+
+  const pollMap = await getPolls(rows.filter((r) => r.tag === 'poll').map((r) => r.id), userId);
 
   const studyMembers = await getStudyMembers(rows.filter((r) => r.tag === 'studybuddy').map((r) => r.id));
 
@@ -384,6 +421,7 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       id: r.id,
       tag: r.tag,
       announce_until: r.announce_until,
+      announce_days_left: announceDaysLeft(r.announce_until),
       title: r.title,
       body: r.body,
       subject_code: r.subject_code,
@@ -405,7 +443,7 @@ async function hydratePosts(rows: RawPostRow[]): Promise<Post[]> {
       created_at: r.created_at,
       liked: likedPostIds.has(r.id),
       bookmarked: bookmarkedIds.has(r.id),
-      poll: null,
+      poll: pollMap.get(r.id) ?? null,
       author: authorMap.get(r.author_id) ?? fallbackAuthor,
       attachments: attachmentsByPost.get(r.id) ?? [],
     };
@@ -472,6 +510,28 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       query = query.in('id', ids);
     }
 
+    // ประกาศที่ยังไม่หมดอายุ ปักไว้บนสุดของฟีดรวม (ทั้งแท็บ "ทั้งหมด" และแท็บ #ประกาศ)
+    let pinnedAnnounces: RawPostRow[] = [];
+    const canPinAnnounces =
+      params.scope !== 'following' && params.scope !== 'bookmarks' &&
+      (!params.tag || params.tag === 'announce') && !params.subject && !params.group;
+    if (canPinAnnounces) {
+      let aq = db()
+        .from('posts')
+        .select('*')
+        .eq('is_hidden', false)
+        .eq('tag', 'announce')
+        .eq('visibility', 'public')
+        .gt('announce_until', new Date().toISOString());
+      if (params.faculty) aq = aq.eq('faculty_id', params.faculty);
+      const { data: aData, error: aErr } = await aq.order('created_at', { ascending: false }).limit(20);
+      if (aErr) console.error('[feed] pinned announce lookup failed', aErr);
+      pinnedAnnounces = (aData ?? []) as RawPostRow[];
+      if (pinnedAnnounces.length) {
+        query = query.not('id', 'in', `(${pinnedAnnounces.map((r) => r.id).join(',')})`);
+      }
+    }
+
     if (params.sort === 'top') {
       query = query
         .order('is_pinned', { ascending: false })
@@ -501,7 +561,7 @@ export async function getFeed(params: FeedParams): Promise<Post[]> {
       (r) => r.visibility === 'public' || (me && r.author_id === me.id),
     );
 
-    return hydratePosts(visibleRows);
+    return hydratePosts(from === 0 ? [...pinnedAnnounces, ...visibleRows] : visibleRows);
   } catch (error) {
     console.error('getFeed unexpected error:', error);
     return [];

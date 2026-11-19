@@ -1,5 +1,6 @@
 'use client';
 
+import { TimeAgo } from '@/components/TimeAgo';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -140,7 +141,7 @@ export function NotificationsList() {
                   <p className="mt-0.5 truncate text-sm text-ink-soft">{item.post_title}</p>
                 ) : null}
                 <p className="mt-1 text-xs text-ink-soft">
-                  {timeAgo(item.created_at, locale)}
+                  <TimeAgo date={item.created_at} />
                 </p>
               </div>
             </div>

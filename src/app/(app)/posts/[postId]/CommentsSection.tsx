@@ -1,9 +1,10 @@
 'use client';
 
+import { TimeAgo } from '@/components/TimeAgo';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { MessageCircle, Send, Trash2 } from 'lucide-react';
+import { CheckCircle2, MessageCircle, Send, Trash2 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { RoleBadge } from '@/components/RoleBadge';
 import { timeAgo } from '@/lib/utils';
@@ -14,10 +15,12 @@ export default function CommentsSection({
   postId,
   meId,
   isAdmin,
+  qa = null,
 }: {
   postId: string;
   meId: string;
   isAdmin: boolean;
+  qa?: { isOwner: boolean; acceptedId: string | null } | null;
 }) {
   const router = useRouter();
   const t = useT();
@@ -29,6 +32,35 @@ export default function CommentsSection({
   const [error, setError] = useState('');
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [acceptedId, setAcceptedId] = useState<string | null>(qa?.acceptedId ?? null);
+  const [accepting, setAccepting] = useState(false);
+
+  async function toggleAccept(commentId: string) {
+    if (!qa?.isOwner || accepting) return;
+    const unmark = acceptedId === commentId;
+    setAccepting(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/posts/${postId}/accept`, {
+        method: unmark ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: unmark ? undefined : JSON.stringify({ commentId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(t(data?.error ?? 'เกิดข้อผิดพลาด'));
+      setAcceptedId(data?.accepted_comment_id ?? null);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('เกิดข้อผิดพลาด'));
+    } finally {
+      setAccepting(false);
+    }
+  }
+
+  // คำตอบที่ถูกเลือกขึ้นก่อน
+  const ordered = acceptedId
+    ? [...comments].sort((a, b) => Number(String(b.id) === acceptedId) - Number(String(a.id) === acceptedId))
+    : comments;
 
   const loadComments = useCallback(async () => {
     setLoading(true);
@@ -174,7 +206,7 @@ export default function CommentsSection({
           id="comment"
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder={t('แสดงความคิดเห็นของคุณ...')}
+          placeholder={qa ? t('ช่วยตอบคำถามนี้หน่อย...') : t('แสดงความคิดเห็นของคุณ...')}
           maxLength={2000}
           rows={3}
           className="input min-h-24 w-full resize-y"
@@ -222,8 +254,13 @@ export default function CommentsSection({
           </div>
         ) : (
           <div className="divide-y divide-[color:var(--color-line)]">
-            {comments.map((comment) => (
-              <article key={comment.id} className="flex gap-3 px-5 py-4">
+            {ordered.map((comment) => {
+              const isAccepted = acceptedId !== null && String(comment.id) === acceptedId;
+              return (
+              <article
+                key={comment.id}
+                className={`flex gap-3 px-5 py-4 ${isAccepted ? 'bg-emerald-50/60 dark:bg-emerald-900/10' : ''}`}
+              >
                 <Link
                   href={`/u/${comment.author.username}`}
                   className="shrink-0"
@@ -266,16 +303,36 @@ export default function CommentsSection({
                     )}
                   </div>
 
+                  {isAccepted ? (
+                    <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                      <CheckCircle2 size={13} /> {t('คำตอบที่ดีที่สุด')}
+                    </span>
+                  ) : null}
+
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">
                     {comment.body}
                   </p>
 
                   <p className="mt-2 text-xs text-ink-soft">
-                    {timeAgo(comment.created_at, locale)}
+                    <TimeAgo date={comment.created_at} />
+                    {qa?.isOwner ? (
+                      <>
+                        {' · '}
+                        <button
+                          type="button"
+                          disabled={accepting}
+                          onClick={() => toggleAccept(String(comment.id))}
+                          className="font-semibold text-emerald-700 hover:underline disabled:opacity-50"
+                        >
+                          {isAccepted ? t('ยกเลิกคำตอบที่เลือก') : t('เลือกเป็นคำตอบที่ดีที่สุด')}
+                        </button>
+                      </>
+                    ) : null}
                   </p>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

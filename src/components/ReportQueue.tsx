@@ -1,5 +1,6 @@
 'use client';
 
+import { TimeAgo } from '@/components/TimeAgo';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import clsx from 'clsx';
@@ -75,7 +76,7 @@ function ReportCase({ report, onResolved }: { report: ReportItem; onResolved: ()
         ) : null}
         <span className="ml-auto text-xs text-ink-soft">
           {report.reporter ? t('รายงานโดย {name}', { name: report.reporter.display_name }) : null}
-          {' · '}{timeAgo(report.created_at, locale)}
+          {' · '}<TimeAgo date={report.created_at} />
         </span>
       </header>
 

@@ -4,7 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/supabase';
 import { notifyManySafely } from '@/lib/notifications';
 import { getMe } from '@/lib/data';
-import { TAG_ORDER, type PostTag } from '@/lib/types';
+import {
+  TAG_ORDER, POLL_MIN_OPTIONS, POLL_MAX_OPTIONS, POLL_OPTION_MAX, type PostTag,
+} from '@/lib/types';
+
+const ANNOUNCE_DAYS = 7;
+const ANNOUNCE_DAILY_LIMIT = 3;
 
 export interface NewAttachment {
   kind: 'file' | 'image';
@@ -44,6 +49,17 @@ export async function createPost(
   if (tag === 'announce' && me.role === 'student') {
     return { ok: false, error: 'โพสต์ #ประกาศ ได้เฉพาะอาจารย์และเจ้าหน้าที่' };
   }
+  if (tag === 'announce') {
+    const { count } = await db()
+      .from('posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('author_id', me.id)
+      .eq('tag', 'announce')
+      .gte('created_at', new Date(Date.now() - 86_400_000).toISOString());
+    if ((count ?? 0) >= ANNOUNCE_DAILY_LIMIT) {
+      return { ok: false, error: 'โพสต์ประกาศได้วันละ 3 โพสต์ ลองใหม่พรุ่งนี้' };
+    }
+  }
 
   const title = rawInput.title?.trim() ? rawInput.title.trim().slice(0, 160) : null;
   const body = (rawInput.body ?? '').trim().slice(0, 5000);
@@ -60,6 +76,21 @@ export async function createPost(
   } else {
     if (!title && !body && attachments.length === 0) {
       return { ok: false, error: 'เขียนอะไรสักหน่อย หรือแนบไฟล์มาด้วยก็ได้' };
+    }
+  }
+
+  const pollOptions = tag === 'poll'
+    ? (Array.isArray(rawInput.options) ? rawInput.options : [])
+        .map((o) => String(o ?? '').trim().slice(0, POLL_OPTION_MAX))
+        .filter(Boolean)
+        .slice(0, POLL_MAX_OPTIONS)
+    : [];
+  if (tag === 'poll') {
+    if (!title && !body) {
+      return { ok: false, error: 'ใส่คำถามของโพลล์ด้วย' };
+    }
+    if (pollOptions.length < POLL_MIN_OPTIONS) {
+      return { ok: false, error: 'โพลล์ต้องมีตัวเลือกอย่างน้อย 2 ข้อ' };
     }
   }
 
@@ -103,6 +134,10 @@ export async function createPost(
       meet_place: rawInput.meetPlace?.trim() || null,
       capacity: rawInput.capacity ?? null,
       requires_approval: Boolean(rawInput.requiresApproval),
+      // ประกาศปักไว้บนฟีด ANNOUNCE_DAYS วัน
+      announce_until: tag === 'announce'
+        ? new Date(Date.now() + ANNOUNCE_DAYS * 86_400_000).toISOString()
+        : null,
     })
     .select('id')
     .single();
@@ -128,6 +163,16 @@ export async function createPost(
     if (attachErr) {
       await db().from('posts').delete().eq('id', postId);
       return { ok: false, error: 'บันทึกทะเบียนไฟล์ไม่สำเร็จ' };
+    }
+  }
+
+  if (pollOptions.length > 0) {
+    const { error: pollErr } = await db().from('poll_options').insert(
+      pollOptions.map((label, idx) => ({ post_id: postId, label, sort_order: idx })),
+    );
+    if (pollErr) {
+      await db().from('posts').delete().eq('id', postId);
+      return { ok: false, error: 'สร้างโพสต์ไม่สำเร็จ' };
     }
   }
 

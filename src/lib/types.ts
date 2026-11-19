@@ -76,6 +76,8 @@ export interface Post {
   tag: PostTag;
 
   announce_until: string | null;
+  // จำนวนวันที่ประกาศยังปักอยู่ (0 = ไม่ปัก/หมดอายุแล้ว) คำนวณฝั่ง server
+  announce_days_left: number;
   title: string | null;
   body: string;
   subject_code: string | null;
